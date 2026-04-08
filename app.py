@@ -111,12 +111,14 @@ else:
     c1, c2 = st.columns([1, 1], gap="large")
     
     with c1:
-        st.subheader("📖 Step 1: Create Your Database")
-        with st.expander("Follow these steps to setup your Google Sheet", expanded=True):
+        st.subheader("📖 Step 1: Setup Your Database")
+        with st.container(border=True):
             st.markdown("""
-            1. Create a new **[Google Sheet](https://sheets.new)**.
-            2. Go to **Extensions** > **Apps Script**.
-            3. Delete all existing code and paste this:
+            **1. Create a Sheet:** Open a new **[Google Sheet](https://sheets.new)** and give it a name (e.g., 'Exam Logs').
+
+            **2. Open Script Editor:** Go to **Extensions** > **Apps Script**.
+
+            **3. Paste the Code:** Delete all existing code in the editor and paste this:
             """)
             st.code("""function doPost(e) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
@@ -124,10 +126,21 @@ else:
   sheet.appendRow([new Date(), data.name, data.action]);
   return ContentService.createTextOutput("Success");
 }""", language="javascript")
+            
             st.markdown("""
-            4. Click **Deploy** > **New Deployment**.
-            5. Select **Web App**. Set 'Who has access' to **Anyone**.
-            6. Copy the **Web App URL** (ends in `/exec`).
+            **4. Deploy as Web App:** * Click **Deploy** (blue button) > **New Deployment**.
+            * Select Type: **Web App**.
+            * Description: `v1`
+            * Execute as: **Me** (your email).
+            * Who has access: **Anyone** (This is critical).
+            * Click **Deploy**.
+
+            **5. Authorize Access:** * A popup will ask for permission. Click **Authorize Access**.
+            * Select your Google Account.
+            * If you see *"Google hasn't verified this app"*, click **Advanced** > **Go to [Project Name] (unsafe)**.
+            * Click **Allow**.
+
+            **6. Copy URL:** Copy the **Web App URL** (ends in `/exec`) and paste it into Step 2 on the right.
             """)
 
     with c2:
