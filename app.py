@@ -147,7 +147,7 @@ else:
         st.subheader("🔗 Step 2: Generate Exam Link")
         with st.form("teacher_form"):
             t_hook = st.text_input("Web App URL (from Step 1):", placeholder="https://script.google.com/...")
-            t_form = st.text_input("Google Form Link:", placeholder="https://docs.google.com/forms/...")
+            t_form = st.text_input("Exam Link:", placeholder="https://docs.google.com/forms/...")
             t_sheet = st.text_input("Formula Sheet (Optional):", placeholder="Link to image/PDF/GitHub")
             t_tool = st.text_input("Extra Tool (Optional):", placeholder="e.g. Desmos calculator link")
             
