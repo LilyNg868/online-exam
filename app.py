@@ -141,7 +141,7 @@ else:
             if st.form_submit_button("GENERATE STUDENT LINK", use_container_width=True):
                 if t_hook and t_form:
                     # IMPORTANT: Update this URL after deploying to Streamlit Cloud
-                    base_url = "https://your-app-name.streamlit.app/" 
+                    base_url = "https://online-exam-8vextpoluxbfd75ea5kdnb.streamlit.app/" 
                     p = {"hook": t_hook, "form": t_form, "sheet": t_sheet or "None", "tool": t_tool or "None"}
                     final_link = f"{base_url}?{urllib.parse.urlencode(p)}"
                     st.success("Success! Send the link below to your students:")
