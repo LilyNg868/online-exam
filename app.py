@@ -139,18 +139,18 @@ else:
 
         with st.expander("📄 Copy Apps Script Code"):
             st.code("""
+
 /**
- * 1. CORE DATA RECEIVER
- * Automatically renames the first sheet to "Logs" upon first data entry.
+ * 1. RECEIVE DATA & AUTO-RENAME
+ * Runs whenever a student interacts with the App.
  */
 function doPost(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheets = ss.getSheets();
   var logSheet = ss.getSheetByName("Logs");
 
-  // Auto-initialize: If "Logs" doesn't exist, rename the active/first sheet
   if (!logSheet) {
-    logSheet = sheets[0]; 
+    // Force the first available sheet to be "Logs"
+    logSheet = ss.getSheets()[0]; 
     logSheet.setName("Logs");
   }
 
@@ -171,15 +171,28 @@ function onOpen() {
 
 /**
  * 3. DASHBOARD GENERATOR
- * Optimized with grouped violations and side-by-side layout.
+ * Includes a check to rename sheets if the teacher runs it manually.
  */
 function setupDashboard() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sep = ";"; // Fixed separator for your region
+  var sep = ";"; 
+  
+  // --- AUTO-RENAME LOGIC ---
   var logSheet = ss.getSheetByName("Logs");
+  if (!logSheet) {
+    var allSheets = ss.getSheets();
+    // Find a sheet that isn't the Dashboard to rename it to Logs
+    for (var i = 0; i < allSheets.length; i++) {
+      if (allSheets[i].getName() !== "LIVE_MONITOR") {
+        logSheet = allSheets[i];
+        logSheet.setName("Logs");
+        break;
+      }
+    }
+  }
 
   if (!logSheet || logSheet.getLastRow() < 1) {
-    SpreadsheetApp.getUi().alert("No data received yet. Please start an exam to initialize the Logs sheet.");
+    SpreadsheetApp.getUi().alert("No data found. Please ensure at least one student has started the exam.");
     return;
   }
 
@@ -187,51 +200,45 @@ function setupDashboard() {
   dashSheet.clear();
   dashSheet.activate();
 
-  // --- UI: GENERAL STATS (Left Side) ---
+  // --- UI: STATISTICS ---
   dashSheet.getRange("A1:B1").merge().setValue("📊 STATISTICS")
            .setBackground("#1f4e78").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("center");
   
   dashSheet.getRange("A3").setValue("Total Students:");
-  dashSheet.getRange("B3").setFormula('=COUNTIF(Logs!C:C' + sep + ' "START")');
+  dashSheet.getRange("B3").setFormula(`=COUNTIF(Logs!C:C${sep}"START")`);
   dashSheet.getRange("A4").setValue("Completed:");
-  dashSheet.getRange("B4").setFormula('=COUNTIF(Logs!C:C' + sep + ' "FINISH")');
+  dashSheet.getRange("B4").setFormula(`=COUNTIF(Logs!C:C${sep}"FINISH")`);
   dashSheet.getRange("A5").setValue("Total Violations:");
-  dashSheet.getRange("B5").setFormula('=COUNTIF(Logs!C:C' + sep + ' "LEAVE TAB")').setFontColor("red").setFontWeight("bold");
+  dashSheet.getRange("B5").setFormula(`=COUNTIF(Logs!C:C${sep}"LEAVE TAB")`).setFontColor("red").setFontWeight("bold");
 
-  // --- UI: VIOLATION SUMMARY (Center) ---
+  // --- UI: VIOLATION SUMMARY ---
   dashSheet.getRange("D1:F1").merge().setValue("🚨 VIOLATION SUMMARY")
            .setBackground("#990000").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("center");
   
-  var queryStr = '=QUERY(Logs!A:C' + sep + ' "SELECT B, COUNT(C), MAX(A) WHERE C = \'LEAVE TAB\' GROUP BY B ORDER BY COUNT(C) DESC LABEL B \'Student Name\', COUNT(C) \'Times\', MAX(A) \'Latest Violation\'"' + sep + ' 1)';
+  var queryStr = `=QUERY(Logs!A:C${sep} "SELECT B, COUNT(C), MAX(A) WHERE C = 'LEAVE TAB' GROUP BY B ORDER BY COUNT(C) DESC LABEL B 'Student Name', COUNT(C) 'Times', MAX(A) 'Latest Violation'"${sep} 1)`;
   dashSheet.getRange("D2").setFormula(queryStr);
 
-  // Red highlight for violation counts
-  var rule = SpreadsheetApp.newConditionalFormatRule().whenNumberGreaterThan(0)
-      .setBackground("#FFCCCC").setFontColor("#990000").setBold(true)
-      .setRanges([dashSheet.getRange("E3:E100")]).build();
-  dashSheet.setConditionalFormatRules([rule]);
-
-  // --- UI: PIE CHART (Right Side - Column H) ---
+  // --- UI: PIE CHART ---
   dashSheet.getRange("M1").setValue("Status"); dashSheet.getRange("N1").setValue("Count");
   dashSheet.getRange("M2").setValue("Finished"); dashSheet.getRange("N2").setFormula("=B4");
-  dashSheet.getRange("M3").setValue("Working"); dashSheet.getRange("N3").setFormula("=MAX(0" + sep + " B3-B4)");
+  dashSheet.getRange("M3").setValue("Working"); dashSheet.getRange("N3").setFormula(`=MAX(0${sep}B3-B4)`);
 
   var chart = dashSheet.newChart()
     .setChartType(Charts.ChartType.PIE)
     .addRange(dashSheet.getRange("M2:N3"))
-    .setPosition(2, 8, 0, 0) // Starts at cell H2
+    .setPosition(2, 8, 0, 0) 
     .setOption('title', 'Completion Progress')
     .setOption('colors', ['#2ecc71', '#f1c40f'])
     .setOption('pieHole', 0.4)
     .build();
   dashSheet.insertChart(chart);
 
-  // Final touches
+  // Formatting
   dashSheet.getRange("F:F").setNumberFormat("HH:mm:ss");
   dashSheet.setColumnWidth(4, 180); dashSheet.setColumnWidth(5, 70); dashSheet.setColumnWidth(6, 130);
   dashSheet.hideColumns(13, 2); 
   
-  SpreadsheetApp.getUi().alert("Dashboard is ready!)
+  SpreadsheetApp.getUi().alert("Logs sheet identified and Dashboard updated!");
 }
             """, language="javascript")
 
