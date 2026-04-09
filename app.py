@@ -4,24 +4,44 @@ import requests
 import datetime
 import pytz
 
-# --- 1. CONFIG & CSS FOR STICKY SIDEBAR ---
-st.set_page_config(page_title="Exam Portal", layout="wide")
+# --- 1. CONFIG & DUAL-PANE FIX (LEFT SCROLL, RIGHT FIXED) ---
+st.set_page_config(page_title="Exam Portal", page_icon="📝", layout="wide")
 
 st.markdown("""
     <style>
-    /* Fixed/Sticky logic for the right column (Candidate info & Finish button) */
-    [data-testid="column"]:nth-child(2) [data-testid="stVerticalBlock"] {
-        position: sticky;
-        top: 2rem;
-        z-index: 1000;
+    /* 1. Disable global scrolling for the entire app */
+    html, body, [data-testid="stAppViewContainer"] {
+        overflow: hidden;
+        height: 100vh;
     }
-    
-    /* Responsive adjustment for mobile */
-    @media (max-width: 640px) {
-        [data-testid="column"]:nth-child(2) [data-testid="stVerticalBlock"] {
-            position: relative;
-            top: 0;
-        }
+
+    /* 2. Configure the main container height */
+    [data-testid="stMainViewContainer"] {
+        height: 100vh;
+    }
+
+    /* 3. Left Column: Independent vertical scroll */
+    [data-testid="column"]:nth-child(1) {
+        height: 95vh;
+        overflow-y: auto;
+        padding-right: 15px;
+    }
+
+    /* 4. Right Column: Absolutely fixed, no scroll allowed */
+    [data-testid="column"]:nth-child(2) {
+        height: 95vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Scrollbar styling for the Left Column */
+    [data-testid="column"]:nth-child(1)::-webkit-scrollbar {
+        width: 8px;
+    }
+    [data-testid="column"]:nth-child(1)::-webkit-scrollbar-thumb {
+        background: #cbd5e0;
+        border-radius: 10px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -63,13 +83,23 @@ if "form" in params:
     if 'has_started' not in st.session_state: st.session_state.has_started = False
     if 'is_active' not in st.session_state: st.session_state.is_active = True
 
+    # Column 1 (Scrolling) | Column 2 (Fixed)
     c1, c2 = st.columns([7, 3])
     
     with c1: 
         st.title("📝 Online Examination")
+        if st.session_state.has_started:
+            tab_map = {"✍️ Assignment": config['form']}
+            if config['ref'] and config['ref'] != "None": tab_map["📋 Resources"] = config['ref']
+            if config['tool'] and config['tool'] != "None": tab_map["🔍 Tools"] = config['tool']
+
+            tabs = st.tabs(list(tab_map.keys()))
+            for i, (name, url) in enumerate(tab_map.items()):
+                with tabs[i]:
+                    st.markdown(f'<iframe src="{url}" width="100%" height="1500px" style="border:none;"></iframe>', unsafe_allow_html=True)
     
     with c2:
-        # Phase 1: Registration
+        st.write("---")
         if not st.session_state.has_started:
             with st.form("start"):
                 s_name = st.text_input("Candidate Name:", placeholder="Enter full name")
@@ -80,49 +110,33 @@ if "form" in params:
                         send_log(config['hook'], s_name, "START")
                         st.rerun()
         
-        # Phase 2: Monitoring & Finishing (Sticky column content)
         else:
+            # This info remains fixed on the screen
+            st.info(f"👤 Candidate: **{st.session_state.student_name}**")
+            
             if st.session_state.is_active:
-                st.info(f"👤 Candidate: **{st.session_state.student_name}**")
                 if st.button("🏁 FINISH", type="primary", use_container_width=True):
                     send_log(config['hook'], st.session_state.student_name, "FINISH")
                     st.session_state.is_active = False
                     st.toast("Submission logged. Monitoring deactivated.")
             
             if not st.session_state.is_active:
-                st.success("✅ Exam is finished. You may now view your result.")
+                st.success("✅ Exam is finished. You may now view your results.")
 
-    st.divider()
-
-    if st.session_state.has_started:
-        # Anti-cheat JS
-        js_placeholder = st.empty()
-        if st.session_state.is_active:
-            with js_placeholder:
-                components.html(f"""
-                    <script>
-                    document.addEventListener("visibilitychange", function() {{
-                        if (document.hidden) {{
-                            fetch('{config['hook']}', {{
-                                method: 'POST', mode: 'no-cors',
-                                body: JSON.stringify({{ name: '{st.session_state.student_name}', action: 'LEAVE TAB' }})
-                            }});
-                        }}
+    # Anti-cheat JS
+    if st.session_state.has_started and st.session_state.is_active:
+        components.html(f"""
+            <script>
+            document.addEventListener("visibilitychange", function() {{
+                if (document.hidden) {{
+                    fetch('{config['hook']}', {{
+                        method: 'POST', mode: 'no-cors',
+                        body: JSON.stringify({{ name: '{st.session_state.student_name}', action: 'LEAVE TAB' }})
                     }});
-                    </script>
-                """, height=0)
-        else:
-            js_placeholder.empty()
-
-        # Content Layout
-        tab_map = {"✍️ Assignment": config['form']}
-        if config['ref'] and config['ref'] != "None": tab_map["📋 Resources"] = config['ref']
-        if config['tool'] and config['tool'] != "None": tab_map["🔍 Tools"] = config['tool']
-
-        tabs = st.tabs(list(tab_map.keys()))
-        for i, (name, url) in enumerate(tab_map.items()):
-            with tabs[i]:
-                st.markdown(f'<iframe src="{url}" width="100%" height="850px" style="border:none;"></iframe>', unsafe_allow_html=True)
+                }}
+            }});
+            </script>
+        """, height=0)
 
 # --- 3. TEACHER MODE ---
 else:
@@ -135,7 +149,6 @@ else:
         st.markdown("2. Go to **Extensions > Apps Script**.")
         st.markdown("3. Paste the following code into `Code.gs`:")
 
-        # Apps Script Code moved between Step 3 and 4
         st.code("""
 /**
  * 1. CORE DATA RECEIVER
@@ -219,10 +232,10 @@ function setupDashboard() {
 
         st.markdown("4. Click **Deploy > New Deployment**.")
         st.markdown("5. Select **Web App**, set access to **Anyone**, and click **Deploy**.")
-        st.markdown("6. **Copy the Web App URL** for the next step.")
+        st.markdown("6. **Copy the Web App URL** for the next phase.")
         
         st.markdown("### Phase 2: Activation")
-        st.markdown("- Send the generated link to students.")
+        st.markdown("- Send the generated portal link to students.")
         st.markdown("- Once the first student starts, a menu 🚀 **EXAM TOOLS** will appear in your Sheet.")
         st.markdown("- Click **Setup Live Dashboard** to initialize the monitor.")
         
@@ -246,7 +259,7 @@ function setupDashboard() {
                     u_param = f"{exp_date.strftime('%Y%m%d')}{exp_time.strftime('%H%M')}" if exp_time else "None"
                     base_url = "https://online-exam.streamlit.app/" 
                     link = f"{base_url}?form={f}&hook={h}&until={u_param}&ref={r or 'None'}&tool={t or 'None'}"
-                    st.success("Link Generated!")
+                    st.success("Link Generated Successfully!")
                     st.code(link)
                 else:
                     st.error("Webhook and Form links are mandatory.")
