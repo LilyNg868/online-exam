@@ -2,14 +2,13 @@ import streamlit as st
 import streamlit.components.v1 as components
 import requests
 
+# --- 1. SETTINGS ---
 st.set_page_config(page_title="Exam Portal", layout="wide")
 
-# Custom Styles
 st.markdown("""
     <style>
     div[data-testid="InputInstructions"] { display: none; }
     .stApp { max-width: 1200px; margin: 0 auto; }
-    .setup-card { background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -19,7 +18,7 @@ def send_log(url, name, action):
     try: requests.post(url, json={"name": name, "action": action}, timeout=5)
     except: pass
 
-# --- STUDENT INTERFACE ---
+# --- 2. STUDENT INTERFACE ---
 if "form" in params:
     config = {
         "form": params.get("form"),
@@ -44,7 +43,7 @@ if "form" in params:
                         send_log(config['hook'], s_name, "START")
                         st.rerun()
         elif st.session_state.is_active:
-            st.info(f"👤 Candidate: **{st.session_state.student_name}** | 🔒 Secure Mode Active")
+            st.info(f"👤 Candidate: **{st.session_state.student_name}**")
             if st.button("🏁 FINISH & SUBMIT", type="primary", use_container_width=True):
                 send_log(config['hook'], st.session_state.student_name, "FINISH")
                 st.session_state.is_active = False
@@ -76,135 +75,79 @@ if "form" in params:
             with tabs[i]:
                 st.markdown(f'<iframe src="{url}" width="100%" height="850px" style="border:none;"></iframe>', unsafe_allow_html=True)
 
-# --- TEACHER INTERFACE ---
+# --- 3. TEACHER INTERFACE ---
 else:
     st.title("🛠️ Exam Management Console")
-    t_setup, t_gen = st.tabs(["📖 Detailed Setup Guide", "🚀 Generate Exam Link"])
+    t_setup, t_gen = st.tabs(["📖 Setup Guide", "🚀 Generate Exam Link"])
     
     with t_setup:
         st.markdown("""
-        ### Phase 1: Google Sheets Configuration
-        1. **Create Sheet**: Open a new [Google Sheet](https://sheets.new).
-        2. **Open Script Editor**: Go to **Extensions** > **Apps Script**.
-        3. **Paste Code**: Delete all existing code in `Code.gs` and paste the script provided below.
-        4. **Save**: Click the 💾 icon and name the project (e.g., "Exam Monitor").
+        ### Phase 1: Google Sheets Setup
+        1. Open a new [Google Sheet](https://sheets.new).
+        2. Go to **Extensions** > **Apps Script**.
+        3. Paste the code from the box below into `Code.gs`.
+        4. Click **Deploy** > **New Deployment**.
+        5. Select **Web App**, set access to **Anyone**, and click **Deploy**.
+        6. **Copy the Web App URL** for the next step.
 
-        ### Phase 2: Deployment (Crucial)
-        1. Click **Deploy** > **New Deployment**.
-        2. Select type: **Web App**.
-        3. Set 'Execute as' to **Me**.
-        4. Set 'Who has access' to **Anyone**.
-        5. Click **Deploy**, authorize permissions, and **copy the Web App URL** (the Webhook).
-
-        ### Phase 3: Activating the Dashboard
-        1. Refresh your Google Sheet.
-        2. A new menu **🚀 EXAM TOOLS** will appear on the top bar.
-        3. Select **Setup Live Dashboard**. 
-        *Note: Run this after the first student starts to see real data.*
+        ### Phase 2: Activation
+        - Once a student starts, a menu **🚀 EXAM TOOLS** will appear in your Sheet.
+        - Click **Setup Live Dashboard** to initialize your monitor.
         """)
-        with st.expander("📄 Copy Apps Script Source Code"):
-            st.code(
- * 1. CORE DATA RECEIVER
- * Automatically initializes the "Logs" sheet upon the first student action.
+        
+        # FIXED: Using triple quotes for multi-line string
+        st.code("""
+/**
+ * APPS SCRIPT CODE
  */
 function doPost(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var logSheet = ss.getSheetByName("Logs");
-
-  if (!logSheet) {
-    logSheet = ss.getSheets()[0]; 
-    logSheet.setName("Logs");
-  }
-
+  var logSheet = ss.getSheetByName("Logs") || ss.getSheets()[0];
+  if (logSheet.getName() !== "Logs") logSheet.setName("Logs");
   var data = JSON.parse(e.postData.contents);
   logSheet.appendRow([new Date(), data.name, data.action]);
   return ContentService.createTextOutput("Success");
 }
 
-/**
- * 2. CUSTOM MENU
- */
 function onOpen() {
-  var ui = SpreadsheetApp.getUi();
-  ui.createMenu('🚀 EXAM TOOLS')
+  SpreadsheetApp.getUi().createMenu('🚀 EXAM TOOLS')
       .addItem('Setup Live Dashboard', 'setupDashboard')
       .addToUi();
 }
 
-/**
- * 3. DASHBOARD GENERATOR
- */
 function setupDashboard() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sep = ";"; 
-  
   var logSheet = ss.getSheetByName("Logs");
-  if (!logSheet) {
-    var allSheets = ss.getSheets();
-    for (var i = 0; i < allSheets.length; i++) {
-      if (allSheets[i].getName() !== "LIVE_MONITOR") {
-        logSheet = allSheets[i];
-        logSheet.setName("Logs");
-        break;
-      }
-    }
-  }
-
-  if (!logSheet || logSheet.getLastRow() < 1) {
-    SpreadsheetApp.getUi().alert("No data found. Please ensure at least one student has started the exam.");
-    return;
-  }
+  if (!logSheet) { SpreadsheetApp.getUi().alert("No data yet."); return; }
 
   var dashSheet = ss.getSheetByName("LIVE_MONITOR") || ss.insertSheet("LIVE_MONITOR");
-  dashSheet.clear();
-  dashSheet.activate();
+  dashSheet.clear().activate();
 
-  // HEADERS & STATS
-  dashSheet.getRange("A1:B1").merge().setValue("📊 STATISTICS").setBackground("#1f4e78").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("center");
-  dashSheet.getRange("A3").setValue("Total Students:");
-  dashSheet.getRange("B3").setFormula(`=COUNTIF(Logs!C:C${sep}"START")`);
-  dashSheet.getRange("A4").setValue("Completed:");
-  dashSheet.getRange("B4").setFormula(`=COUNTIF(Logs!C:C${sep}"FINISH")`);
-  dashSheet.getRange("A5").setValue("Total Violations:");
-  dashSheet.getRange("B5").setFormula(`=COUNTIF(Logs!C:C${sep}"LEAVE TAB")`).setFontColor("red").setFontWeight("bold");
+  dashSheet.getRange("A1:B1").merge().setValue("📊 STATISTICS").setBackground("#1f4e78").setFontColor("white").setFontWeight("bold");
+  dashSheet.getRange("B3").setFormula('=COUNTIF(Logs!C:C' + sep + ' "START")');
+  dashSheet.getRange("B4").setFormula('=COUNTIF(Logs!C:C' + sep + ' "FINISH")');
+  dashSheet.getRange("B5").setFormula('=COUNTIF(Logs!C:C' + sep + ' "LEAVE TAB")').setFontColor("red");
 
-  // VIOLATION TABLE
-  dashSheet.getRange("D1:F1").merge().setValue("🚨 VIOLATION SUMMARY").setBackground("#990000").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("center");
-  var queryStr = `=QUERY(Logs!A:C${sep} "SELECT B, COUNT(C), MAX(A) WHERE C = 'LEAVE TAB' GROUP BY B ORDER BY COUNT(C) DESC LABEL B 'Student Name', COUNT(C) 'Times', MAX(A) 'Latest Violation'"${sep} 1)`;
+  var queryStr = '=QUERY(Logs!A:C' + sep + ' "SELECT B, COUNT(C), MAX(A) WHERE C = \'LEAVE TAB\' GROUP BY B ORDER BY COUNT(C) DESC LABEL B \'Student\', COUNT(C) \'Times\', MAX(A) \'Latest\'"' + sep + ' 1)';
   dashSheet.getRange("D2").setFormula(queryStr);
-
-  // PROGRESS CHART
-  dashSheet.getRange("M1").setValue("Status"); dashSheet.getRange("N1").setValue("Count");
-  dashSheet.getRange("M2").setValue("Finished"); dashSheet.getRange("N2").setFormula("=B4");
-  dashSheet.getRange("M3").setValue("Working"); dashSheet.getRange("N3").setFormula(`=MAX(0${sep}B3-B4)`);
-
-  var chart = dashSheet.newChart()
-    .setChartType(Charts.ChartType.PIE)
-    .addRange(dashSheet.getRange("M2:N3"))
-    .setPosition(2, 8, 0, 0) 
-    .setOption('title', 'Completion Progress')
-    .setOption('colors', ['#2ecc71', '#f1c40f'])
-    .setOption('pieHole', 0.4)
-    .build();
-  dashSheet.insertChart(chart);
-
-  dashSheet.getRange("F:F").setNumberFormat("HH:mm:ss");
-  dashSheet.setColumnWidth(4, 180); dashSheet.setColumnWidth(5, 70); dashSheet.setColumnWidth(6, 130);
-  dashSheet.hideColumns(13, 2); 
   
-  SpreadsheetApp.getUi().alert("Dashboard updated successfully!");
-}", language="javascript")
+  dashSheet.setColumnWidth(4, 180); dashSheet.setColumnWidth(6, 130);
+  SpreadsheetApp.getUi().alert("Dashboard ready!");
+}
+        """, language="javascript")
             
     with t_gen:
         with st.form("generator"):
-            h = st.text_input("1. Web App URL (Webhook):", placeholder="https://script.google.com/macros/s/...")
-            f = st.text_input("2. Google Form URL:", placeholder="The 'Send' link from your form")
-            r = st.text_input("3. Reference URL (Optional):", placeholder="PDF, Formula Sheet, etc.")
-            t = st.text_input("4. Tool URL (Optional):", placeholder="Calculator, Periodic Table, etc.")
+            h = st.text_input("Webhook URL (from Apps Script):")
+            f = st.text_input("Google Form Link:")
+            r = st.text_input("Resource Link (Optional):")
+            t = st.text_input("Tool Link (Optional):")
             if st.form_submit_button("GENERATE PORTAL LINK", use_container_width=True):
                 if h and f:
-                    base_url = "https://your-app-name.streamlit.app/" 
+                    # Replace with your actual deployed Streamlit URL
+                    base_url = "https://online-exam.streamlit.app/" 
                     final_link = f"{base_url}?form={f}&hook={h}&ref={r or 'None'}&tool={t or 'None'}"
                     st.success("Exam Link Generated!")
                     st.code(final_link)
-                else: st.error("Webhook and Form URLs are mandatory.")
+                else: st.error("Webhook and Form links are mandatory.")
