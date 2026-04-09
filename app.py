@@ -112,12 +112,39 @@ elif "form" in params:
 else:
     st.markdown('<h1 class="main-title">🛠️ Assignment Engine</h1>', unsafe_allow_html=True)
     l, r = st.columns(2, gap="large")
+   
     with l:
-        st.subheader("Step 1: Database Setup")
-        with st.expander("Instructions", expanded=True):
-            st.markdown("1. Create a [Sheet](https://sheets.new). 2. Add Apps Script. 3. Deploy as Web App (Anyone). 4. Share Sheet as 'Anyone with link can view'.")
-            st.code("function doPost(e){var s=SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();var d=JSON.parse(e.postData.contents);s.appendRow([new Date(),d.name,d.action]);return ContentService.createTextOutput('OK');}", language="javascript")
-
+            st.subheader("📖 Step 1: Setup Your Database")
+            with st.container(border=True):
+                st.markdown("""
+                **1. Create a Sheet:** Open a new **[Google Sheet](https://sheets.new)** and give it a name (e.g., 'Exam Logs').
+    
+                **2. Open Script Editor:** Go to **Extensions** > **Apps Script**.
+    
+                **3. Paste the Code:** Delete all existing code in the editor and paste this:
+                """)
+                st.code("""function doPost(e) {
+      var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+      var data = JSON.parse(e.postData.contents);
+      sheet.appendRow([new Date(), data.name, data.action]);
+      return ContentService.createTextOutput("Success");
+    }""", language="javascript")
+                
+                st.markdown("""
+                **4. Deploy as Web App:** * Click **Deploy** (blue button) > **New Deployment**.
+                * Select Type: **Web App**.
+                * Description: `v1`
+                * Execute as: **Me** (your email).
+                * Who has access: **Anyone** (This is critical).
+                * Click **Deploy**.
+    
+                **5. Authorize Access:** * A popup will ask for permission. Click **Authorize Access**.
+                * Select your Google Account.
+                * If you see *"Google hasn't verified this app"*, click **Advanced** > **Go to [Project Name] (unsafe)**.
+                * Click **Allow**.
+    
+                **6. Copy URL:** Copy the **Web App URL** (ends in `/exec`) and paste it into Step 2 on the right.
+                """)
     with r:
         st.subheader("Step 2: Generate Links")
         with st.form("gen"):
