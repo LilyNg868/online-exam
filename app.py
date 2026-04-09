@@ -53,7 +53,7 @@ if "form" in params:
         
         # Step 3: Finished Mode (UI stays, Monitoring stops)
         else: 
-            st.success("✅ Logged as Finished. You may now review your responses.")
+            st.success("✅ Examination is finished. You may now view your result.")
 
     st.divider()
 
