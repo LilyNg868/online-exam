@@ -1,266 +1,117 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import requests
-import pandas as pd
 
-# --- 1. SETTINGS & STYLING ---
+# --- 1. SETTINGS ---
 st.set_page_config(page_title="Exam Portal", layout="wide")
 
+# CSS tối giản, tập trung vào trải nghiệm làm bài
 st.markdown("""
     <style>
     div[data-testid="InputInstructions"] { display: none; }
-    .stApp { max-width: 1200px; margin: 0 auto; }
-    .main-title { font-size: 2.5rem; font-weight: 800; color: #1E293B; margin-bottom: 20px; }
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
+    .stTabs [data-baseweb="tab"] { background-color: #f1f5f9; border-radius: 5px; padding: 10px 20px; }
     </style>
     """, unsafe_allow_html=True)
 
 params = st.query_params
-# 2  STUDENT MODE: 
+
+# Hàm gửi dữ liệu gọn nhẹ
+def send_log(url, name, action):
+    try:
+        requests.post(url, json={"name": name, "action": action}, timeout=5)
+    except:
+        pass
+
+# --- 2. STUDENT MODE ---
 if "form" in params:
-    FORM_URL = params.get("form")
-    HOOK_URL = params.get("hook")
-    SHEET_URL = params.get("sheet") if params.get("sheet") != "None" else None
-    TOOL_URL = params.get("tool") if params.get("tool") != "None" else None
+    # Lấy params gọn hơn
+    config = {
+        "form": params.get("form"),
+        "hook": params.get("hook"),
+        "ref": params.get( "ref" if "ref" in params else "sheet"), # Hỗ trợ cả 2 tên biến
+        "tool": params.get("tool")
+    }
 
-    if 'is_monitored' not in st.session_state: st.session_state.is_monitored = True
     if 'has_started' not in st.session_state: st.session_state.has_started = False
+    if 'is_active' not in st.session_state: st.session_state.is_active = True
 
-    col_l, col_r = st.columns([7, 3])
-    with col_l:
-        st.title("📝 Online Assessment")
-    with col_r:
+    c1, c2 = st.columns([7, 3])
+    with c1: st.title("📝 Online Assessment")
+    with c2:
         if not st.session_state.has_started:
-            with st.form("start_exam"):
-                st.write("Enter your full name to begin:")
-                s_name = st.text_input("Student Name:", placeholder="e.g. Jane Doe")
-                # Enter key will automatically trigger this button
+            with st.form("start"):
+                s_name = st.text_input("Full Name:", placeholder="Enter your name to start")
                 if st.form_submit_button("🚀 START EXAM", use_container_width=True):
                     if s_name:
                         st.session_state.student_name = s_name
                         st.session_state.has_started = True
-                        try: requests.post(HOOK_URL, json={"name": s_name, "action": "START"})
-                        except: pass
+                        send_log(config['hook'], s_name, "START")
                         st.rerun()
-                    else: st.error("Name is required to start.")
-        elif st.session_state.is_monitored:
-            if st.button("🏁 CONFIRM FINISH", type="primary", use_container_width=True):
-                try: requests.post(HOOK_URL, json={"name": st.session_state.student_name, "action": "FINISH"})
-                except: pass
-                st.session_state.is_monitored = False
+                    else: st.error("Name is required.")
+        
+        elif st.session_state.is_active:
+            st.info(f"👤 **{st.session_state.student_name}** | Monitoring Active")
+            if st.button("🏁 FINISH EXAM", type="primary", use_container_width=True):
+                send_log(config['hook'], st.session_state.student_name, "FINISH")
+                st.session_state.is_active = False
                 st.rerun()
-            st.caption(f"Student: **{st.session_state.student_name}** | 🔒 Monitoring Active")
         else:
-            st.success("✅ Session Completed. You may now view your result.")
+            st.success("✅ Examination Completed.")
 
     st.divider()
 
-    if st.session_state.has_started:
-        # JavaScript Monitoring (Anti-cheat)
-        status_js = "true" if st.session_state.is_monitored else "false"
+    if st.session_state.has_started and st.session_state.is_active:
+        # Anti-cheat: Thêm thông báo toast thay vì alert gây treo trang
         components.html(f"""
             <script>
-            var active = {status_js};
             document.addEventListener("visibilitychange", function() {{
-                if (active && document.hidden) {{
-                    fetch('{HOOK_URL}', {{
+                if (document.hidden) {{
+                    fetch('{config['hook']}', {{
                         method: 'POST', mode: 'no-cors',
-                        body: JSON.stringify({{ name: '{st.session_state.get('student_name', '')}', action: 'LEAVE TAB' }})
+                        body: JSON.stringify({{ name: '{st.session_state.student_name}', action: 'LEAVE TAB' }})
                     }});
-                    alert("WARNING: You left the exam tab! This incident has been reported to the teacher.");
                 }}
             }});
             </script>
         """, height=0)
 
-        # Content Tabs
-        t_names = ["✍️ Assignment"]
-        if SHEET_URL: t_names.append("📋 Formula Sheet")
-        if TOOL_URL: t_names.append("🔍 Tools")
-        
-        tabs = st.tabs(t_names)
-        with tabs[0]:
-            st.markdown(f'<iframe src="{FORM_URL}" width="100%" height="900px" style="border:none;"></iframe>', unsafe_allow_html=True)
-        
-        idx = 1
-        if SHEET_URL:
-            with tabs[idx]:
-                if any(SHEET_URL.lower().endswith(e) for e in ['.png', '.jpg', '.jpeg']):
-                    st.image(SHEET_URL, use_container_width=True)
+        # Tab Logic tối ưu: Chỉ tạo tab nếu URL tồn tại và không phải "None"
+        tab_map = {"✍️ Assignment": config['form']}
+        if config['ref'] and config['ref'] != "None": tab_map["📋 Reference"] = config['ref']
+        if config['tool'] and config['tool'] != "None": tab_map["🔍 Tools"] = config['tool']
+
+        tabs = st.tabs(list(tab_map.keys()))
+        for i, (name, url) in enumerate(tab_map.items()):
+            with tabs[i]:
+                # Tự động nhận diện ảnh hoặc iframe
+                if any(url.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg']):
+                    st.image(url, use_container_width=True)
                 else:
-                    st.markdown(f'<iframe src="{SHEET_URL}" width="100%" height="900px"></iframe>', unsafe_allow_html=True)
-            idx += 1
-        if TOOL_URL:
-            with tabs[idx]:
-                st.markdown(f'<iframe src="{TOOL_URL}" width="100%" height="900px"></iframe>', unsafe_allow_html=True)
-# --- 3. TEACHER MODE (GENERATOR + INSTRUCTIONS) ---
+                    st.markdown(f'<iframe src="{url}" width="100%" height="850px" style="border:none;"></iframe>', unsafe_allow_html=True)
+
+# --- 3. TEACHER MODE ---
 else:
-    st.markdown('<h1 class="main-title">🛠️ Teacher Control Panel</h1>', unsafe_allow_html=True)
+    st.title("🛠️ Teacher Control Panel")
+    t_setup, t_gen = st.tabs(["📖 Setup Guide", "🚀 Link Generator"])
     
-    tab_setup, tab_gen = st.tabs(["📖 Step-by-Step Setup Guide", "🚀 Generate Exam Link"])
-
-    with tab_setup:
-        st.subheader("How to set up your Real-time Dashboard")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("""
-            <div class="step-box">
-            <strong>1. Prepare Google Sheet</strong><br>
-            - Create a new <a href="https://sheets.new" target="_blank">Google Sheet</a>.<br>
-            - Go to <b>Extensions > Apps Script</b>.<br>
-            - Paste the provided script and <b>Save</b>.
-            </div>
+    with t_setup:
+        st.info("Copy the Apps Script code from the expander below and deploy it in Google Sheets.")
+        with st.expander("📄 Click to copy Apps Script Code"):
+            st.code("/* Code Apps Script của bạn ở đây */", language="javascript")
             
-            <div class="step-box">
-            <strong>2. Deploy Web App</strong><br>
-            - Click <b>Deploy > New Deployment</b>.<br>
-            - Select type: <b>Web App</b>.<br>
-            - Access: <b>Anyone</b>.<br>
-            - Copy the <b>Web App URL</b> (this is your Webhook).
-            </div>
-            """, unsafe_allow_html=True)
-            
-        with col2:
-            st.markdown("""
-            <div class="step-box">
-            <strong>3. Initialize Dashboard</strong><br>
-            - Refresh your Sheet.<br>
-            - Go to menu <b>🚀 EXAM TOOLS > Setup Live Dashboard</b>.<br>
-            - Click <b>Share</b> and set to <b>'Anyone with the link can view'</b>.
-            </div>
-            
-            <div class="step-box">
-            <strong>4. Generate Student Link</strong><br>
-            - Go to the next tab here (🚀 Generate Exam Link).<br>
-            - Paste your URLs and get the link for students.
-            </div>
-            """, unsafe_allow_html=True)
-
-        with st.expander("📄 Copy Apps Script Code"):
-            st.code("""
-
-/**
- * 1. RECEIVE DATA & AUTO-RENAME
- * Runs whenever a student interacts with the App.
- */
-function doPost(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var logSheet = ss.getSheetByName("Logs");
-
-  if (!logSheet) {
-    // Force the first available sheet to be "Logs"
-    logSheet = ss.getSheets()[0]; 
-    logSheet.setName("Logs");
-  }
-
-  var data = JSON.parse(e.postData.contents);
-  logSheet.appendRow([new Date(), data.name, data.action]);
-  return ContentService.createTextOutput("Success");
-}
-
-/**
- * 2. INITIALIZE MENU
- */
-function onOpen() {
-  var ui = SpreadsheetApp.getUi();
-  ui.createMenu('🚀 EXAM TOOLS')
-      .addItem('Setup Live Dashboard', 'setupDashboard')
-      .addToUi();
-}
-
-/**
- * 3. DASHBOARD GENERATOR
- * Includes a check to rename sheets if the teacher runs it manually.
- */
-function setupDashboard() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sep = ";"; 
-  
-  // --- AUTO-RENAME LOGIC ---
-  var logSheet = ss.getSheetByName("Logs");
-  if (!logSheet) {
-    var allSheets = ss.getSheets();
-    // Find a sheet that isn't the Dashboard to rename it to Logs
-    for (var i = 0; i < allSheets.length; i++) {
-      if (allSheets[i].getName() !== "LIVE_MONITOR") {
-        logSheet = allSheets[i];
-        logSheet.setName("Logs");
-        break;
-      }
-    }
-  }
-
-  if (!logSheet || logSheet.getLastRow() < 1) {
-    SpreadsheetApp.getUi().alert("No data found. Please ensure at least one student has started the exam.");
-    return;
-  }
-
-  var dashSheet = ss.getSheetByName("LIVE_MONITOR") || ss.insertSheet("LIVE_MONITOR");
-  dashSheet.clear();
-  dashSheet.activate();
-
-  // --- UI: STATISTICS ---
-  dashSheet.getRange("A1:B1").merge().setValue("📊 STATISTICS")
-           .setBackground("#1f4e78").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("center");
-  
-  dashSheet.getRange("A3").setValue("Total Students:");
-  dashSheet.getRange("B3").setFormula(`=COUNTIF(Logs!C:C${sep}"START")`);
-  dashSheet.getRange("A4").setValue("Completed:");
-  dashSheet.getRange("B4").setFormula(`=COUNTIF(Logs!C:C${sep}"FINISH")`);
-  dashSheet.getRange("A5").setValue("Total Violations:");
-  dashSheet.getRange("B5").setFormula(`=COUNTIF(Logs!C:C${sep}"LEAVE TAB")`).setFontColor("red").setFontWeight("bold");
-
-  // --- UI: VIOLATION SUMMARY ---
-  dashSheet.getRange("D1:F1").merge().setValue("🚨 VIOLATION SUMMARY")
-           .setBackground("#990000").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("center");
-  
-  var queryStr = `=QUERY(Logs!A:C${sep} "SELECT B, COUNT(C), MAX(A) WHERE C = 'LEAVE TAB' GROUP BY B ORDER BY COUNT(C) DESC LABEL B 'Student Name', COUNT(C) 'Times', MAX(A) 'Latest Violation'"${sep} 1)`;
-  dashSheet.getRange("D2").setFormula(queryStr);
-
-  // --- UI: PIE CHART ---
-  dashSheet.getRange("M1").setValue("Status"); dashSheet.getRange("N1").setValue("Count");
-  dashSheet.getRange("M2").setValue("Finished"); dashSheet.getRange("N2").setFormula("=B4");
-  dashSheet.getRange("M3").setValue("Working"); dashSheet.getRange("N3").setFormula(`=MAX(0${sep}B3-B4)`);
-
-  var chart = dashSheet.newChart()
-    .setChartType(Charts.ChartType.PIE)
-    .addRange(dashSheet.getRange("M2:N3"))
-    .setPosition(2, 8, 0, 0) 
-    .setOption('title', 'Completion Progress')
-    .setOption('colors', ['#2ecc71', '#f1c40f'])
-    .setOption('pieHole', 0.4)
-    .build();
-  dashSheet.insertChart(chart);
-
-  // Formatting
-  dashSheet.getRange("F:F").setNumberFormat("HH:mm:ss");
-  dashSheet.setColumnWidth(4, 180); dashSheet.setColumnWidth(5, 70); dashSheet.setColumnWidth(6, 130);
-  dashSheet.hideColumns(13, 2); 
-  
-  SpreadsheetApp.getUi().alert("Logs sheet identified and Dashboard updated!");
-}
-            """, language="javascript")
-
-    with tab_gen:
-        st.subheader("Generate Monitored Exam Link")
-        with st.form("generator_form"):
-            f_hook = st.text_input("1. Webhook URL (from Apps Script):", placeholder="https://script.google.com/macros/s/.../exec")
-            f_form = st.text_input("2. Google Form Link:", placeholder="https://docs.google.com/forms/d/...")
-            f_ref = st.text_input("3. Reference Link (Optional):", placeholder="e.g., PDF Formula Sheet")
-            f_tool = st.text_input("4. Extra Tool Link (Optional):", placeholder="e.g., Online Calculator")
-            
-            if st.form_submit_button("CREATE STUDENT PORTAL", use_container_width=True):
-                if f_hook and f_form:
-                    # Tự động lấy URL hiện tại của app
-                    base_url = "https://online-exam.streamlit.app/" # Thay bằng URL thật của bạn
-                    
-                    s_link = f"{base_url}?form={f_form}&hook={f_hook}&ref={f_ref or 'None'}&tool={f_tool or 'None'}"
-                    
-                    st.success("🎉 Exam Link Generated!")
-                    st.write("**Send this to your students:**")
+    with t_gen:
+        with st.form("generator"):
+            h = st.text_input("Webhook URL (from Apps Script):")
+            f = st.text_input("Google Form Link:")
+            r = st.text_input("Reference/PDF (Optional):")
+            t = st.text_input("Tool Link (Optional):")
+            if st.form_submit_button("GENERATE EXAM LINK", use_container_width=True):
+                if h and f:
+                    # Tự động lấy URL hiện tại của App để làm base
+                    # (Streamlit tự xử lý URL khi deploy)
+                    s_link = f"https://online-exam.streamlit.app/?form={f}&hook={h}&ref={r or 'None'}&tool={t or 'None'}"
+                    st.success("Link Generated!")
                     st.code(s_link)
-                    st.info("Remember: Watch your live updates in the Google Sheet 'LIVE_MONITOR' tab.")
                 else:
-                    st.error("Please provide at least Webhook URL and Google Form Link.")
-
+                    st.error("Please fill in Webhook and Form links.")
