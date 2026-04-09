@@ -2,3 +2,4 @@ streamlit
 requests
 pytz
 datetime
+cryptography
