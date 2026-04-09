@@ -120,6 +120,14 @@ else:
         1. Open a new [Google Sheet](https://sheets.new).
         2. Go to **Extensions** > **Apps Script**.
         3. Paste the provided code into `Code.gs`.
+        4. Click **Deploy** > **New Deployment**.
+        5. Select **Web App**, set access to **Anyone**, and click **Deploy**.
+        6. **Copy the Web App URL** for the next step.
+
+        ### Phase 2: Activation
+        - Send the generated link to students.
+        - Once the first student starts, a menu **🚀 EXAM TOOLS** will appear in your Sheet.
+        - Click **Setup Live Dashboard** to initialize the monitor.
         """)
         
         with st.expander("📄 View Apps Script Code"):
@@ -215,16 +223,7 @@ function setupDashboard() {
 }
             """, language="javascript")
        
-         st.markdown("""
-        4. Click **Deploy** > **New Deployment**.
-        5. Select **Web App**, set access to **Anyone**, and click **Deploy**.
-        6. **Copy the Web App URL** for the next step.
 
-        ### Phase 2: Activation
-        - Send the generated link to students.
-        - Once the first student starts, a menu **🚀 EXAM TOOLS** will appear in your Sheet.
-        - Click **Setup Live Dashboard** to initialize the monitor.
-        """)
         
     with t_gen:
         with st.form("generator"):
