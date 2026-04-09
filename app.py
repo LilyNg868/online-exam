@@ -4,22 +4,28 @@ import requests
 import datetime
 import pytz
 
-# --- 1. SETTINGS & AUTO-LOCK ---
+# --- 1. CONFIG & LOCK LOGIC ---
 st.set_page_config(page_title="Exam Portal", layout="wide")
 params = st.query_params
 
-# Check Deadline if exists in URL
+# Automatic Expiration Check
 if "until" in params and params.get("until") != "None":
     try:
         vn_tz = pytz.timezone('Asia/Ho_Chi_Minh')
         now = datetime.datetime.now(vn_tz)
-        deadline_str = params.get("until") # Format: HHmm
-        deadline_time = now.replace(hour=int(deadline_str[:2]), minute=int(deadline_str[2:]), second=0)
+        u = params.get("until") # Expected format: YYYYMMDDHHmm
         
-        if now > deadline_time:
-            st.error(f"🚫 This exam portal closed at {deadline_time.strftime('%H:%M')}. Access denied.")
+        deadline = vn_tz.localize(datetime.datetime(
+            int(u[:4]), int(u[4:6]), int(u[6:8]), 
+            int(u[8:10]), int(u[10:12])
+        ))
+        
+        if now > deadline:
+            st.error(f"🚫 This portal closed on {deadline.strftime('%b %d, %Y at %H:%M')}.")
+            st.info("Submissions are no longer accepted for this session.")
             st.stop()
-    except: pass
+    except:
+        pass
 
 def send_log(url, name, action):
     try: requests.post(url, json={"name": name, "action": action}, timeout=5)
@@ -42,7 +48,7 @@ if "form" in params:
     with c2:
         if not st.session_state.has_started:
             with st.form("start"):
-                s_name = st.text_input("Candidate Name:", placeholder="Full name")
+                s_name = st.text_input("Student Full Name:", placeholder="Enter your name to begin")
                 if st.form_submit_button("🚀 START EXAM", use_container_width=True):
                     if s_name:
                         st.session_state.student_name = s_name
@@ -55,9 +61,9 @@ if "form" in params:
                 if st.button("🏁 FINISH & SUBMIT", type="primary", use_container_width=True):
                     send_log(config['hook'], st.session_state.student_name, "FINISH")
                     st.session_state.is_active = False
-                    st.toast("Monitoring deactivated.")
+                    st.toast("Submission recorded. Anti-cheat deactivated.")
             if not st.session_state.is_active:
-                st.success("✅ Examination Completed.")
+                st.success("✅ Assessment Completed.")
 
     st.divider()
 
@@ -90,24 +96,43 @@ else:
     st.title("🛠️ Exam Management Console")
     t_setup, t_gen = st.tabs(["📖 Setup Guide", "🚀 Generate Exam Link"])
     
+    with t_setup:
+        st.markdown("""
+        ### 1. Sheet Setup
+        - Open a Google Sheet > **Extensions** > **Apps Script**.
+        - Paste the `Code.gs` and Save.
+        ### 2. Deployment
+        - **Deploy** > **New Deployment** > **Web App**.
+        - Set access to **Anyone**. Copy the **Web App URL**.
+        ### 3. Activation
+        - After a student starts, use the **🚀 EXAM TOOLS** menu in your Sheet to initialize the Dashboard.
+        """)
+            
     with t_gen:
         with st.form("generator"):
-            h = st.text_input("Webhook URL:")
+            h = st.text_input("Webhook URL (from Apps Script):")
             f = st.text_input("Google Form Link:")
+            r = st.text_input("Resource Link (Optional):")
+            t = st.text_input("Tool Link (Optional):")
             
-            col_a, col_b = st.columns(2)
-            with col_a:
-                exp_time = st.time_input("Lock Portal At (Optional):", value=None)
-            with col_b:
-                r = st.text_input("Resource Link:")
+            st.write("---")
+            st.subheader("⚙️ Expiration Settings (Optional)")
+            col1, col2 = st.columns(2)
+            with col1:
+                exp_date = st.date_input("Lock Date:", value=datetime.date.today())
+            with col2:
+                exp_time = st.time_input("Lock Time (HH:mm):", value=None)
             
-            t = st.text_input("Tool Link:")
-            
-            if st.form_submit_button("CREATE PORTAL LINK"):
+            if st.form_submit_button("GENERATE PORTAL LINK", use_container_width=True):
                 if h and f:
-                    # Mã hóa thời gian vào URL (HHmm)
-                    until_param = exp_time.strftime("%H%M") if exp_time else "None"
-                    base_url = "https://online-exam.streamlit.app/" 
-                    link = f"{base_url}?form={f}&hook={h}&until={until_param}&ref={r or 'None'}&tool={t or 'None'}"
-                    st.success("Exam Link Generated!")
+                    if exp_time:
+                        u_param = f"{exp_date.strftime('%Y%m%d')}{exp_time.strftime('%H%M')}"
+                    else:
+                        u_param = "None"
+                    
+                    base_url = "https://online-exam.streamlit.app/" # Update to your URL
+                    link = f"{base_url}?form={f}&hook={h}&until={u_param}&ref={r or 'None'}&tool={t or 'None'}"
+                    st.success("Link Generated!")
                     st.code(link)
+                else:
+                    st.error("Webhook and Form links are mandatory.")
