@@ -49,60 +49,79 @@ if "view" in params:
         if st.button("🔄 Refresh Data", use_container_width=True): st.rerun()
     except:
         st.error("Enable 'Anyone with the link can view' on your Google Sheet.")
-
-# --- 3. STUDENT EXAM MODE ---
-elif "form" in params:
+# 3  STUDENT MODE: 
+if "form" in params:
     FORM_URL = params.get("form")
     HOOK_URL = params.get("hook")
-    REF_URL = params.get("ref") if params.get("ref") != "None" else None
+    SHEET_URL = params.get("sheet") if params.get("sheet") != "None" else None
     TOOL_URL = params.get("tool") if params.get("tool") != "None" else None
-    
+
+    if 'is_monitored' not in st.session_state: st.session_state.is_monitored = True
     if 'has_started' not in st.session_state: st.session_state.has_started = False
-    if 'active' not in st.session_state: st.session_state.active = True
 
-    c1, c2 = st.columns([7, 3])
-    with c1: st.title("📝 Online Assignment")
-    with c2:
+    col_l, col_r = st.columns([7, 3])
+    with col_l:
+        st.title("📝 Online Assessment")
+    with col_r:
         if not st.session_state.has_started:
-            with st.form("start"):
-                name = st.text_input("Full Name:")
-                if st.form_submit_button("🚀 START"):
-                    if name:
-                        st.session_state.student_name = name
+            with st.form("start_exam"):
+                st.write("Enter your full name to begin:")
+                s_name = st.text_input("Student Name:", placeholder="e.g. Jane Doe")
+                # Enter key will automatically trigger this button
+                if st.form_submit_button("🚀 START EXAM", use_container_width=True):
+                    if s_name:
+                        st.session_state.student_name = s_name
                         st.session_state.has_started = True
-                        requests.post(HOOK_URL, json={"name": name, "action": "START"})
+                        try: requests.post(HOOK_URL, json={"name": s_name, "action": "START"})
+                        except: pass
                         st.rerun()
+                    else: st.error("Name is required to start.")
+        elif st.session_state.is_monitored:
+            if st.button("🏁 CONFIRM FINISH", type="primary", use_container_width=True):
+                try: requests.post(HOOK_URL, json={"name": st.session_state.student_name, "action": "FINISH"})
+                except: pass
+                st.session_state.is_monitored = False
+                st.rerun()
+            st.caption(f"Student: **{st.session_state.student_name}** | 🔒 Monitoring Active")
         else:
-            st.write(f"Student: **{st.session_state.student_name}**")
-            if st.button("🏁 FINISH EXAM", type="primary"):
-                requests.post(HOOK_URL, json={"name": st.session_state.student_name, "action": "FINISH"})
-                st.session_state.active = False
-                st.success("Submitted!")
+            st.success("✅ Session Completed. You may close this tab.")
 
-    if st.session_state.has_started and st.session_state.active:
+    st.divider()
+
+    if st.session_state.has_started:
+        # JavaScript Monitoring (Anti-cheat)
+        status_js = "true" if st.session_state.is_monitored else "false"
         components.html(f"""
             <script>
+            var active = {status_js};
             document.addEventListener("visibilitychange", function() {{
-                if (document.hidden) {{
-                    fetch('{HOOK_URL}', {{method: 'POST', mode: 'no-cors', body: JSON.stringify({{name: '{st.session_state.student_name}', action: 'LEAVE TAB'}})}});
-                    alert("VIOLATION: Tab switching recorded!");
+                if (active && document.hidden) {{
+                    fetch('{HOOK_URL}', {{
+                        method: 'POST', mode: 'no-cors',
+                        body: JSON.stringify({{ name: '{st.session_state.get('student_name', '')}', action: 'LEAVE TAB' }})
+                    }});
+                    alert("WARNING: You left the exam tab! This incident has been reported to the teacher.");
                 }}
             }});
             </script>
         """, height=0)
+
+        # Content Tabs
+        t_names = ["✍️ Assignment"]
+        if SHEET_URL: t_names.append("📋 Formula Sheet")
+        if TOOL_URL: t_names.append("🔍 Tools")
         
-        tabs_titles = ["✍️ Assignment"]
-        if REF_URL: tabs_titles.append("📋 Reference")
-        if TOOL_URL: tabs_titles.append("🔍 Extra Tool")
-        
-        tabs = st.tabs(tabs_titles)
+        tabs = st.tabs(t_names)
         with tabs[0]:
             st.markdown(f'<iframe src="{FORM_URL}" width="100%" height="900px" style="border:none;"></iframe>', unsafe_allow_html=True)
         
         idx = 1
-        if REF_URL:
+        if SHEET_URL:
             with tabs[idx]:
-                st.markdown(f'<iframe src="{REF_URL}" width="100%" height="900px"></iframe>', unsafe_allow_html=True)
+                if any(SHEET_URL.lower().endswith(e) for e in ['.png', '.jpg', '.jpeg']):
+                    st.image(SHEET_URL, use_container_width=True)
+                else:
+                    st.markdown(f'<iframe src="{SHEET_URL}" width="100%" height="900px"></iframe>', unsafe_allow_html=True)
             idx += 1
         if TOOL_URL:
             with tabs[idx]:
