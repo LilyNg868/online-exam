@@ -51,11 +51,11 @@ if "form" in params:
             if st.session_state.is_active:
                 st.info(f"👤 Candidate: **{st.session_state.student_name}**")
                 # We use a standard button instead of a form to avoid forced refreshes
-                if st.button("🏁 FINISH & SUBMIT", type="primary", use_container_width=True):
+                if st.button("🏁 FINISH", type="primary", use_container_width=True):
                     send_log(config['hook'], st.session_state.student_name, "FINISH")
                     st.session_state.is_active = False
                     # IMPORTANT: No st.rerun() here to keep the iframe state
-                    st.toast("Submission logged. Monitoring deactivated.")
+                    st.toast("Examination is finished. You may now view your result.")
             
             if not st.session_state.is_active:
                 st.success("✅ Logged as Finished. You may continue reviewing.")
