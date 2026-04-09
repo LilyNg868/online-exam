@@ -218,6 +218,11 @@ else:
         st.markdown("5. Select **Web App**, set access to **Anyone**, and click **Deploy**.")
         st.markdown("6. **Copy the Web App URL** for the next step.")
         
+        st.markdown("### Phase 2: Activation")
+        st.markdown("- Send the generated link to students.")
+        st.markdown("- Once the first student starts, a menu 🚀 **EXAM TOOLS** will appear in your Sheet.")
+        st.markdown("- Click **Setup Live Dashboard** to initialize the monitor.")
+        
     with t_gen:
         with st.form("generator"):
             h = st.text_input("Webhook URL (from Apps Script):")
