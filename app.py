@@ -146,8 +146,8 @@ else:
         st.markdown("1. Open a new [Google Sheet](https://sheets.new).")
         st.markdown("2. Go to **Extensions > Apps Script**.")
         st.markdown("3. Paste the following code into `Code.gs`:")
-
-        st.code("""
+        with st.expander("📄 Copy Apps Script Code"):
+            st.code("""
 /**
  * 1. CORE DATA RECEIVER
  */
