@@ -103,7 +103,7 @@ else:
         *Note: Run this after the first student starts to see real data.*
         """)
         with st.expander("📄 Copy Apps Script Source Code"):
-            st.code("/
+            st.code(
  * 1. CORE DATA RECEIVER
  * Automatically initializes the "Logs" sheet upon the first student action.
  */
