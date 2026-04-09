@@ -136,26 +136,120 @@ if config:
         """, height=0)
 
 # --- 6. TEACHER MODE ---
+
 else:
     st.title("🛠️ Exam Management Console")
     t_setup, t_gen = st.tabs(["📖 Setup Guide", "🚀 Generate Exam Link"])
     
     with t_setup:
-        # (Instructions remains the same as your previous code)
         st.markdown("### Phase 1: Google Sheets Setup")
-        st.code("""/* (Apps Script Code from your original post) */""", language="javascript")
+        st.markdown("1. Open a new [Google Sheet](https://sheets.new).")
+        st.markdown("2. Go to **Extensions > Apps Script**.")
+        st.markdown("3. Paste the following code into `Code.gs`:")
+
+        st.code("""
+/**
+ * 1. CORE DATA RECEIVER
+ */
+function doPost(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var logSheet = ss.getSheetByName("Logs") || ss.getSheets()[0];
+  if (logSheet.getName() !== "Logs") logSheet.setName("Logs");
+
+  var data = JSON.parse(e.postData.contents);
+  logSheet.appendRow([new Date(), data.name, data.action]);
+  return ContentService.createTextOutput("Success");
+}
+
+/**
+ * 2. CUSTOM MENU
+ */
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('🚀 EXAM TOOLS')
+      .addItem('Setup Live Dashboard', 'setupDashboard')
+      .addToUi();
+}
+
+/**
+ * 3. DASHBOARD GENERATOR
+ */
+function setupDashboard() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var logSheet = ss.getSheetByName("Logs");
+  var sep = ";"; 
+  
+  if (!logSheet) {
+    SpreadsheetApp.getUi().alert("Logs tab not found!");
+    return;
+  }
+
+  var dashSheet = ss.getSheetByName("LIVE_MONITOR") || ss.insertSheet("LIVE_MONITOR");
+  dashSheet.clear().activate();
+
+  dashSheet.getRange("A1:B1").merge().setValue("📊 STATISTICS").setBackground("#1f4e78").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("center");
+  dashSheet.getRange("A3").setValue("Total Students Started:");
+  dashSheet.getRange("B3").setFormula(`=IFERROR(COUNTUNIQUE(FILTER(Logs!B:B\${sep} UPPER(TRIM(Logs!C:C))="START"))\${sep} 0)`);
+  dashSheet.getRange("A4").setValue("Completed:");
+  dashSheet.getRange("B4").setFormula(`=COUNTIF(Logs!C:C\${sep} "*FINISH*")`);
+  dashSheet.getRange("A5").setValue("Total Violations:");
+  dashSheet.getRange("B5").setFormula(`=COUNTIF(Logs!C:C\${sep} "*LEAVE TAB*")`).setFontColor("red").setFontWeight("bold");
+
+  dashSheet.getRange("D1:G1").merge().setValue("🚨 STUDENT MONITORING").setBackground("#333333").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("center");
+  
+  var headers = [["Student Name", "Violations", "Last Violation At", "Status"]];
+  dashSheet.getRange("D2:G2").setValues(headers).setBackground("#eeeeee").setFontWeight("bold");
+
+  var nameQuery = \`=IFERROR(UNIQUE(QUERY(Logs!A:C\${sep} "SELECT B WHERE UPPER(C) CONTAINS 'START'"\${sep} 1))\${sep} "Waiting...")\`;
+  dashSheet.getRange("D3").setFormula(nameQuery);
+
+  var lastRow = 200; 
+
+  dashSheet.getRange("E3:E" + lastRow).setFormula(\`=IF(OR(D3=""\${sep} D3="Waiting...")${sep} ""\${sep} COUNTIFS(Logs!B:B\${sep} D3\${sep} Logs!C:C\${sep} "*LEAVE TAB*"))\`);
+  dashSheet.getRange("F3:F" + lastRow).setFormula(\`=IF(OR(D3=""\${sep} E3=0)\${sep} ""\${sep} MAXIFS(Logs!A:A\${sep} Logs!B:B\${sep} D3\${sep} Logs!C:C\${sep} "*LEAVE TAB*"))\`);
+  dashSheet.getRange("F3:F" + lastRow).setNumberFormat("HH:mm:ss");
+  dashSheet.getRange("G3:G" + lastRow).setFormula(\`=IF(OR(D3=""\${sep} D3="Waiting...")${sep} ""\${sep} IF(COUNTIFS(Logs!B:B\${sep} D3\${sep} Logs!C:C\${sep} "*FINISH*")>0\${sep} "COMPLETED"\${sep} "IN PROGRESS"))\`);
+
+  var range = dashSheet.getRange("D3:G" + lastRow);
+  var rule = SpreadsheetApp.newConditionalFormatRule()
+      .whenFormulaSatisfied(\`=$G3="COMPLETED"\`)
+      .setBackground("#d9ead3")
+      .setFontColor("#274e13")
+      .setRanges([range])
+      .build();
+  
+  var rules = dashSheet.getConditionalFormatRules();
+  rules.push(rule);
+  dashSheet.setConditionalFormatRules(rules);
+
+  dashSheet.setColumnWidth(4, 200); dashSheet.setColumnWidth(5, 100); 
+  dashSheet.setColumnWidth(6, 150); dashSheet.setColumnWidth(7, 120);
+
+  SpreadsheetApp.getUi().alert("Dashboard is updated.");
+}
+        """, language="javascript")
+
+        st.markdown("4. Click **Deploy > New Deployment**.")
+        st.markdown("5. Select **Web App**, set access to **Anyone**, and click **Deploy**.")
+        st.markdown("6. **Copy the Web App URL** for the next phase.")
+        
+        st.markdown("### Phase 2: Activation")
+        st.markdown("- Send the generated portal link to students.")
+        st.markdown("- Once the first student starts, a menu 🚀 **EXAM TOOLS** will appear in your Sheet.")
+        st.markdown("- Click **Setup Live Dashboard** to initialize the monitor.")
         
     with t_gen:
         with st.form("generator"):
             h = st.text_input("Webhook URL (from Apps Script):")
-            f = st.text_input("Google Form Link:")
-            r = st.text_input("Resource Link (Optional):", value="None")
-            t = st.text_input("Tool Link (Optional):", value="None")
+            f = st.text_input("Exam Link:")
+            r = st.text_input("Resource Link (Optional):")
+            t = st.text_input("Tool Link (Optional):")
             st.write("---")
-            st.subheader("⚙️ Expiration Settings")
+            st.subheader("⚙️ Expiration Settings (Optional)")
             col1, col2 = st.columns(2)
-            with col1: exp_date = st.date_input("Lock Date:")
-            with col2: exp_time = st.time_input("Lock Time:")
+            with col1:
+                exp_date = st.date_input("Lock Date:", value=datetime.date.today())
+            with col2:
+                exp_time = st.time_input("Lock Time (HH:mm):", value=None)
             
             if st.form_submit_button("GENERATE SECURE LINK", use_container_width=True):
                 if h and f:
