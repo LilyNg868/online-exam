@@ -117,7 +117,7 @@ if config:
                 if st.button("🏁 FINISH", type="primary", use_container_width=True):
                     send_log(config['hook'], st.session_state.student_name, "FINISH")
                     st.session_state.is_active = False
-                    st.toast("Submission logged. Monitoring deactivated.")")
+                    st.toast("Submission logged. Monitoring deactivated.")
             if not st.session_state.is_active:
                 st.success("✅ Exam is finished.")
 
