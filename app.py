@@ -201,7 +201,7 @@ function setupDashboard() {
             t = st.text_input("Tool Link (Optional):")
             if st.form_submit_button("GENERATE PORTAL LINK", use_container_width=True):
                 if h and f:
-                    base_url = "https://your-app-name.streamlit.app/" 
+                    base_url = "https://online-exam.streamlit.app/" 
                     final_link = f"{base_url}?form={f}&hook={h}&ref={r or 'None'}&tool={t or 'None'}"
                     st.success("Exam Link Generated!")
                     st.code(final_link)
