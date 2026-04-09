@@ -115,10 +115,20 @@ else:
     t_setup, t_gen = st.tabs(["📖 Setup Guide", "🚀 Generate Exam Link"])
     
     with t_setup:
-        st.markdown("### Phase 1: Google Sheets Setup")
-    st.markdown("1. Open a new [Google Sheet](https://sheets.new).")
-    st.markdown("2. Go to **Extensions > Apps Script**.")
-    st.markdown("3. Paste the provided code into `Code.gs`:")
+         st.markdown("""
+       ### Phase 1: Google Sheets Setup
+        1. Open a new [Google Sheet](https://sheets.new).
+        2. Go to **Extensions** > **Apps Script**.
+        3. Paste the provided code into `Code.gs`.
+        4. Click **Deploy** > **New Deployment**.
+        5. Select **Web App**, set access to **Anyone**, and click **Deploy**.
+        6. **Copy the Web App URL** for the next step.
+
+        ### Phase 2: Activation
+        - Send the generated link to students.
+        - Once the first student starts, a menu **🚀 EXAM TOOLS** will appear in your Sheet.
+        - Click **Setup Live Dashboard** to initialize the monitor.
+        """)
         
             st.code("""
             /**
@@ -211,15 +221,6 @@ function setupDashboard() {
   SpreadsheetApp.getUi().alert("Dashboard is updated.");
 }
             """, language="javascript")
-       st.markdown("4. Click **Deploy > New Deployment**.")
-    st.markdown("5. Select **Web App**, set access to **Anyone**, and click **Deploy**.")
-    st.markdown("6. **Copy the Web App URL** for the next step.")
-
-    st.markdown("### Phase 2: Activation")
-    st.markdown("- Send the generated link to students.")
-    st.markdown("- Once the first student starts, a menu 🚀 **EXAM TOOLS** will appear in your Sheet.")
-    st.markdown("- Click **Setup Live Dashboard** to initialize the monitor.")
-
         
     with t_gen:
         with st.form("generator"):
