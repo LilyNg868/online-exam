@@ -16,8 +16,8 @@ params = st.query_params
 def send_log(url, name, action):
     try: requests.post(url, json={"name": name, "action": action}, timeout=5)
     except: pass
-
-# --- STUDENT INTERFACE ---
+        
+# ---  STUDENT INTERFACE ---
 if "form" in params:
     config = {
         "form": params.get("form"),
@@ -32,6 +32,7 @@ if "form" in params:
     c1, c2 = st.columns([7, 3])
     with c1: st.title("📝 Online Examination")
     with c2:
+        # Step 1: Entry Gate
         if not st.session_state.has_started:
             with st.form("start"):
                 s_name = st.text_input("Candidate Name:", placeholder="Enter full name")
@@ -41,30 +42,40 @@ if "form" in params:
                         st.session_state.has_started = True
                         send_log(config['hook'], s_name, "START")
                         st.rerun()
+        
+        # Step 2: Active Monitoring
         elif st.session_state.is_active:
             st.info(f"👤 Candidate: **{st.session_state.student_name}**")
             if st.button("🏁 FINISH & SUBMIT", type="primary", use_container_width=True):
                 send_log(config['hook'], st.session_state.student_name, "FINISH")
-                st.session_state.is_active = False
+                st.session_state.is_active = False # This stops the JS monitoring
                 st.rerun()
-        else: st.success("✅ Examination Completed.")
+        
+        # Step 3: Finished Mode (UI stays, Monitoring stops)
+        else: 
+            st.success("✅ Logged as Finished. You may now review your responses.")
 
     st.divider()
 
-    if st.session_state.has_started and st.session_state.is_active:
-        components.html(f"""
-            <script>
-            document.addEventListener("visibilitychange", function() {{
-                if (document.hidden) {{
-                    fetch('{config['hook']}', {{
-                        method: 'POST', mode: 'no-cors',
-                        body: JSON.stringify({{ name: '{st.session_state.student_name}', action: 'LEAVE TAB' }})
-                    }});
-                }}
-            }});
-            </script>
-        """, height=0)
+    # The content is visible as long as the exam has started
+    if st.session_state.has_started:
+        
+        # ONLY inject the anti-cheat JavaScript if is_active is True
+        if st.session_state.is_active:
+            components.html(f"""
+                <script>
+                document.addEventListener("visibilitychange", function() {{
+                    if (document.hidden) {{
+                        fetch('{config['hook']}', {{
+                            method: 'POST', mode: 'no-cors',
+                            body: JSON.stringify({{ name: '{st.session_state.student_name}', action: 'LEAVE TAB' }})
+                        }});
+                    }}
+                }});
+                </script>
+            """, height=0)
 
+        # Tab Logic (Stays visible even after finishing)
         tab_map = {"✍️ Assignment": config['form']}
         if config['ref'] and config['ref'] != "None": tab_map["📋 Resources"] = config['ref']
         if config['tool'] and config['tool'] != "None": tab_map["🔍 Tools"] = config['tool']
