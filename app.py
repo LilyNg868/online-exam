@@ -2,6 +2,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 import requests
 
+# --- 1. SETTINGS ---
 st.set_page_config(page_title="Exam Portal", layout="wide")
 
 st.markdown("""
@@ -16,8 +17,8 @@ params = st.query_params
 def send_log(url, name, action):
     try: requests.post(url, json={"name": name, "action": action}, timeout=5)
     except: pass
-        
-# ---  STUDENT INTERFACE ---
+
+# --- 2. STUDENT INTERFACE ---
 if "form" in params:
     config = {
         "form": params.get("form"),
@@ -26,13 +27,15 @@ if "form" in params:
         "tool": params.get("tool")
     }
 
+    # Initialize session states
     if 'has_started' not in st.session_state: st.session_state.has_started = False
     if 'is_active' not in st.session_state: st.session_state.is_active = True
 
     c1, c2 = st.columns([7, 3])
     with c1: st.title("📝 Online Examination")
+    
     with c2:
-        # Step 1: Entry Gate
+        # Phase 1: Registration
         if not st.session_state.has_started:
             with st.form("start"):
                 s_name = st.text_input("Candidate Name:", placeholder="Enter full name")
@@ -41,41 +44,48 @@ if "form" in params:
                         st.session_state.student_name = s_name
                         st.session_state.has_started = True
                         send_log(config['hook'], s_name, "START")
-                        st.rerun()
+                        st.rerun() # Only rerun here to enter the exam
         
-        # Step 2: Active Monitoring
-        elif st.session_state.is_active:
-            st.info(f"👤 Candidate: **{st.session_state.student_name}**")
-            if st.button("🏁 FINISH & SUBMIT", type="primary", use_container_width=True):
-                send_log(config['hook'], st.session_state.student_name, "FINISH")
-                st.session_state.is_active = False # This stops the JS monitoring
-                st.rerun()
-        
-        # Step 3: Finished Mode (UI stays, Monitoring stops)
-        else: 
-            st.success("✅ Examination is finished. You may now view your result.")
+        # Phase 2: Monitoring & Finishing
+        else:
+            if st.session_state.is_active:
+                st.info(f"👤 Candidate: **{st.session_state.student_name}**")
+                # We use a standard button instead of a form to avoid forced refreshes
+                if st.button("🏁 FINISH & SUBMIT", type="primary", use_container_width=True):
+                    send_log(config['hook'], st.session_state.student_name, "FINISH")
+                    st.session_state.is_active = False
+                    # IMPORTANT: No st.rerun() here to keep the iframe state
+                    st.toast("Submission logged. Monitoring deactivated.")
+            
+            if not st.session_state.is_active:
+                st.success("✅ Logged as Finished. You may continue reviewing.")
 
     st.divider()
 
-    # The content is visible as long as the exam has started
+    # Phase 3: Persistent Content Layout
     if st.session_state.has_started:
         
-        # ONLY inject the anti-cheat JavaScript if is_active is True
+        # Anti-cheat JS: Only runs if is_active is True
+        # Using a container to hold the JS so it can be "removed" when state changes
+        js_placeholder = st.empty()
         if st.session_state.is_active:
-            components.html(f"""
-                <script>
-                document.addEventListener("visibilitychange", function() {{
-                    if (document.hidden) {{
-                        fetch('{config['hook']}', {{
-                            method: 'POST', mode: 'no-cors',
-                            body: JSON.stringify({{ name: '{st.session_state.student_name}', action: 'LEAVE TAB' }})
-                        }});
-                    }}
-                }});
-                </script>
-            """, height=0)
+            with js_placeholder:
+                components.html(f"""
+                    <script>
+                    document.addEventListener("visibilitychange", function() {{
+                        if (document.hidden) {{
+                            fetch('{config['hook']}', {{
+                                method: 'POST', mode: 'no-cors',
+                                body: JSON.stringify({{ name: '{st.session_state.student_name}', action: 'LEAVE TAB' }})
+                            }});
+                        }}
+                    }});
+                    </script>
+                """, height=0)
+        else:
+            js_placeholder.empty() # Remove the JS monitoring entirely
 
-        # Tab Logic (Stays visible even after finishing)
+        # Tab Layout: This remains untouched during the "Finish" process
         tab_map = {"✍️ Assignment": config['form']}
         if config['ref'] and config['ref'] != "None": tab_map["📋 Resources"] = config['ref']
         if config['tool'] and config['tool'] != "None": tab_map["🔍 Tools"] = config['tool']
