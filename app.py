@@ -120,7 +120,6 @@ else:
     st.markdown("2. Go to **Extensions > Apps Script**.")
     st.markdown("3. Paste the provided code into `Code.gs`:")
         
-        with st.expander("📄 View Apps Script Code"):
             st.code("""
             /**
  * 1. CORE DATA RECEIVER
