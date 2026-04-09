@@ -98,14 +98,95 @@ else:
     
     with t_setup:
         st.markdown("""
-        ### 1. Sheet Setup
-        - Open a Google Sheet > **Extensions** > **Apps Script**.
-        - Paste the `Code.gs` and Save.
-        ### 2. Deployment
-        - **Deploy** > **New Deployment** > **Web App**.
-        - Set access to **Anyone**. Copy the **Web App URL**.
-        ### 3. Activation
-        - After a student starts, use the **🚀 EXAM TOOLS** menu in your Sheet to initialize the Dashboard.
+       ### Phase 1: Google Sheets Setup
+        1. Open a new [Google Sheet](https://sheets.new).
+        2. Go to **Extensions** > **Apps Script**.
+        3. Paste the provided code into `Code.gs`.
+        4. Click **Deploy** > **New Deployment**.
+        5. Select **Web App**, set access to **Anyone**, and click **Deploy**.
+        6. **Copy the Web App URL** for the next step.
+
+        ### Phase 2: Activation
+        - Send the generated link to students.
+        - Once the first student starts, a menu **🚀 EXAM TOOLS** will appear in your Sheet.
+        - Click **Setup Live Dashboard** to initialize the monitor.
+        """)
+        
+        with st.expander("📄 View Apps Script Code"):
+            st.code("""
+            /**
+ * 1. CORE DATA RECEIVER
+ */
+function doPost(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var logSheet = ss.getSheetByName("Logs") || ss.getSheets()[0];
+  
+  if (logSheet.getName() !== "Logs") logSheet.setName("Logs");
+
+  var data = JSON.parse(e.postData.contents);
+  logSheet.appendRow([new Date(), data.name, data.action]);
+  return ContentService.createTextOutput("Success");
+}
+
+/**
+ * 2. CUSTOM MENU
+ */
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('🚀 EXAM TOOLS')
+      .addItem('Setup Live Dashboard', 'setupDashboard')
+      .addToUi();
+}
+
+/**
+ * 3. DASHBOARD GENERATOR
+ */
+function setupDashboard() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sep = ";"; // Regional separator
+  var logSheet = ss.getSheetByName("Logs");
+  
+  if (!logSheet || logSheet.getLastRow() < 1) {
+    SpreadsheetApp.getUi().alert("No data received yet. Please start an exam first."); 
+    return;
+  }
+
+  var dashSheet = ss.getSheetByName("LIVE_MONITOR") || ss.insertSheet("LIVE_MONITOR");
+  dashSheet.clear().activate();
+
+  // STATISTICS
+  dashSheet.getRange("A1:B1").merge().setValue("📊 STATISTICS").setBackground("#1f4e78").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("center");
+  dashSheet.getRange("A3").setValue("Total Students:");
+  dashSheet.getRange("B3").setFormula(`=COUNTIF(Logs!C:C${sep}"START")`);
+  dashSheet.getRange("A4").setValue("Completed:");
+  dashSheet.getRange("B4").setFormula(`=COUNTIF(Logs!C:C${sep}"FINISH")`);
+
+  // MONITORING TABLE
+  dashSheet.getRange("D1:F1").merge().setValue("🚨 STUDENT MONITORING").setBackground("#333333").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("center");
+  
+  var queryStr = `=QUERY(Logs!A:C${sep} "SELECT B, COUNT(C) WHERE C = 'LEAVE TAB' GROUP BY B LABEL B 'Student Name', COUNT(C) 'Violations'"${sep} 1)`;
+  dashSheet.getRange("D2").setFormula(queryStr);
+  
+  dashSheet.getRange("F2").setValue("Final Status");
+  var lastRow = dashSheet.getLastRow() > 2 ? dashSheet.getLastRow() : 100;
+  dashSheet.getRange("F3:F" + lastRow).setFormula(`=IF(D3=""${sep}""${sep} IF(COUNTIFS(Logs!B:B${sep} D3${sep} Logs!C:C${sep} "FINISH")>0${sep} "COMPLETED"${sep} "IN PROGRESS"))`);
+
+  // CONDITIONAL FORMATTING (Green when finished)
+  var range = dashSheet.getRange("D3:F" + lastRow);
+  var rule = SpreadsheetApp.newConditionalFormatRule()
+      .whenFormulaSatisfied(`=$F3="COMPLETED"`)
+      .setBackground("#d9ead3")
+      .setFontColor("#274e13")
+      .setRanges([range])
+      .build();
+  
+  var rules = dashSheet.getConditionalFormatRules();
+  rules.push(rule);
+  dashSheet.setConditionalFormatRules(rules);
+
+  dashSheet.setColumnWidth(4, 200); dashSheet.setColumnWidth(6, 120);
+  SpreadsheetApp.getUi().alert("Dashboard initialized!");
+}
+            """, language="javascript")
         """)
             
     with t_gen:
