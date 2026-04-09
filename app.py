@@ -84,7 +84,7 @@ if "form" in params:
                 st.rerun()
             st.caption(f"Student: **{st.session_state.student_name}** | 🔒 Monitoring Active")
         else:
-            st.success("✅ Session Completed. You may close this tab.")
+            st.success("✅ Session Completed. You may now view your result.")
 
     st.divider()
 
