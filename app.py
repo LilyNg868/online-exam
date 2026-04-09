@@ -97,7 +97,100 @@ else:
         
         with st.expander("📄 View Apps Script Code"):
             st.code("""
-            /* Use the Javascript code provided above in the Apps Script section */
+            /**
+ * 1. CORE DATA RECEIVER
+ * Automatically initializes the "Logs" sheet upon the first student action.
+ */
+function doPost(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var logSheet = ss.getSheetByName("Logs");
+
+  // Auto-rename the first sheet to "Logs" if it doesn't exist
+  if (!logSheet) {
+    logSheet = ss.getSheets()[0]; 
+    logSheet.setName("Logs");
+  }
+
+  var data = JSON.parse(e.postData.contents);
+  logSheet.appendRow([new Date(), data.name, data.action]);
+  return ContentService.createTextOutput("Success");
+}
+
+/**
+ * 2. CUSTOM MENU
+ */
+function onOpen() {
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu('🚀 EXAM TOOLS')
+      .addItem('Setup Live Dashboard', 'setupDashboard')
+      .addToUi();
+}
+
+/**
+ * 3. DASHBOARD GENERATOR
+ */
+function setupDashboard() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sep = ";"; // Hardcoded for your region to prevent #ERROR!
+  
+  // Identify or create the Logs sheet
+  var logSheet = ss.getSheetByName("Logs");
+  if (!logSheet) {
+    var allSheets = ss.getSheets();
+    for (var i = 0; i < allSheets.length; i++) {
+      if (allSheets[i].getName() !== "LIVE_MONITOR") {
+        logSheet = allSheets[i];
+        logSheet.setName("Logs");
+        break;
+      }
+    }
+  }
+
+  if (!logSheet || logSheet.getLastRow() < 1) {
+    SpreadsheetApp.getUi().alert("No data received yet. Please start an exam to initialize the Logs sheet.");
+    return;
+  }
+
+  var dashSheet = ss.getSheetByName("LIVE_MONITOR") || ss.insertSheet("LIVE_MONITOR");
+  dashSheet.clear().activate();
+
+  // HEADERS & STATS
+  dashSheet.getRange("A1:B1").merge().setValue("📊 STATISTICS").setBackground("#1f4e78").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("center");
+  dashSheet.getRange("A3").setValue("Total Students:");
+  dashSheet.getRange("B3").setFormula(`=COUNTIF(Logs!C:C${sep}"START")`);
+  dashSheet.getRange("A4").setValue("Completed:");
+  dashSheet.getRange("B4").setFormula(`=COUNTIF(Logs!C:C${sep}"FINISH")`);
+  dashSheet.getRange("A5").setValue("Total Violations:");
+  dashSheet.getRange("B5").setFormula(`=COUNTIF(Logs!C:C${sep}"LEAVE TAB")`).setFontColor("red").setFontWeight("bold");
+
+  // VIOLATION TABLE
+  dashSheet.getRange("D1:F1").merge().setValue("🚨 VIOLATION SUMMARY").setBackground("#990000").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("center");
+  // Fixed Syntax: Using backticks to handle single quotes within the QUERY
+  var queryStr = `=QUERY(Logs!A:C${sep} "SELECT B, COUNT(C), MAX(A) WHERE C = 'LEAVE TAB' GROUP BY B ORDER BY COUNT(C) DESC LABEL B 'Student Name', COUNT(C) 'Times', MAX(A) 'Latest Violation'"${sep} 1)`;
+  dashSheet.getRange("D2").setFormula(queryStr);
+
+  // PROGRESS PIE CHART
+  dashSheet.getRange("M1").setValue("Status"); dashSheet.getRange("N1").setValue("Count");
+  dashSheet.getRange("M2").setValue("Finished"); dashSheet.getRange("N2").setFormula("=B4");
+  dashSheet.getRange("M3").setValue("Working"); dashSheet.getRange("N3").setFormula(`=MAX(0${sep}B3-B4)`);
+
+  var chart = dashSheet.newChart()
+    .setChartType(Charts.ChartType.PIE)
+    .addRange(dashSheet.getRange("M2:N3"))
+    .setPosition(2, 8, 0, 0) 
+    .setOption('title', 'Completion Progress')
+    .setOption('colors', ['#2ecc71', '#f1c40f'])
+    .setOption('pieHole', 0.4)
+    .build();
+  dashSheet.insertChart(chart);
+
+  // Formatting
+  dashSheet.getRange("F:F").setNumberFormat("HH:mm:ss");
+  dashSheet.setColumnWidth(4, 180); dashSheet.setColumnWidth(5, 70); dashSheet.setColumnWidth(6, 130);
+  dashSheet.hideColumns(13, 2); 
+  
+  SpreadsheetApp.getUi().alert("Dashboard updated successfully!");
+}
             """, language="javascript")
             
     with t_gen:
