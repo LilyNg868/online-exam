@@ -92,29 +92,92 @@ if "form" in params:
         if TOOL_URL:
             with tabs[idx]:
                 st.markdown(f'<iframe src="{TOOL_URL}" width="100%" height="900px"></iframe>', unsafe_allow_html=True)
-
-
-# --- 3. TEACHER GENERATOR MODE ---
+# --- 3. TEACHER MODE (GENERATOR + INSTRUCTIONS) ---
 else:
-    st.markdown('<h1 class="main-title">🛠️ Exam Link Generator</h1>', unsafe_allow_html=True)
-    st.info("Use this tool to create monitored exam links. Monitoring happens in your Google Sheet.")
+    st.markdown('<h1 class="main-title">🛠️ Teacher Control Panel</h1>', unsafe_allow_html=True)
     
-    with st.form("gen"):
-        f_hook = st.text_input("Webhook URL (from Apps Script):")
-        f_form = st.text_input("Google Form Link:")
-        f_ref = st.text_input("Reference/Formula Link (Optional):")
-        f_tool = st.text_input("Extra Tool Link (Optional):")
+    tab_setup, tab_gen = st.tabs(["📖 Step-by-Step Setup Guide", "🚀 Generate Exam Link"])
+
+    with tab_setup:
+        st.subheader("How to set up your Real-time Dashboard")
         
-        if st.form_submit_button("GENERATE STUDENT LINK", use_container_width=True):
-            if f_hook and f_form:
-                # Get the current URL of the app
-                base_url = st.query_params.get("url", "https://your-app-name.streamlit.app/")
-                
-                s_link = f"{base_url}?form={f_form}&hook={f_hook}&ref={f_ref or 'None'}&tool={f_tool or 'None'}"
-                
-                st.success("Link Ready!")
-                st.write("**Send this link to your students:**")
-                st.code(s_link)
-                st.warning("Note: Your real-time dashboard is now directly inside your Google Sheet. No need for a separate Streamlit dashboard link.")
-            else:
-                st.error("Please provide at least the Webhook URL and Google Form Link.")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("""
+            <div class="step-box">
+            <strong>1. Prepare Google Sheet</strong><br>
+            - Create a new <a href="https://sheets.new" target="_blank">Google Sheet</a>.<br>
+            - Go to <b>Extensions > Apps Script</b>.<br>
+            - Paste the provided script and <b>Save</b>.
+            </div>
+            
+            <div class="step-box">
+            <strong>2. Deploy Web App</strong><br>
+            - Click <b>Deploy > New Deployment</b>.<br>
+            - Select type: <b>Web App</b>.<br>
+            - Access: <b>Anyone</b>.<br>
+            - Copy the <b>Web App URL</b> (this is your Webhook).
+            </div>
+            """, unsafe_allow_html=True)
+            
+        with col2:
+            st.markdown("""
+            <div class="step-box">
+            <strong>3. Initialize Dashboard</strong><br>
+            - Refresh your Sheet.<br>
+            - Go to menu <b>🚀 EXAM TOOLS > Setup Live Dashboard</b>.<br>
+            - Click <b>Share</b> and set to <b>'Anyone with the link can view'</b>.
+            </div>
+            
+            <div class="step-box">
+            <strong>4. Generate Student Link</strong><br>
+            - Go to the next tab here (🚀 Generate Exam Link).<br>
+            - Paste your URLs and get the link for students.
+            </div>
+            """, unsafe_allow_html=True)
+
+        with st.expander("📄 Copy Apps Script Code"):
+            st.code("""
+// Paste this in Google Apps Script
+function doPost(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var logSheet = ss.getSheetByName("Logs") || ss.getSheets()[0];
+  if (logSheet.getName() !== "Logs") logSheet.setName("Logs");
+  var data = JSON.parse(e.postData.contents);
+  logSheet.appendRow([new Date(), data.name, data.action]);
+  return ContentService.createTextOutput("Success");
+}
+
+function onOpen() {
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu('🚀 EXAM TOOLS').addItem('Setup Live Dashboard', 'setupDashboard').addToUi();
+}
+
+function setupDashboard() {
+  // (Paste the full setupDashboard function code here from the previous message)
+}
+            """, language="javascript")
+
+    with tab_gen:
+        st.subheader("Generate Monitored Exam Link")
+        with st.form("generator_form"):
+            f_hook = st.text_input("1. Webhook URL (from Apps Script):", placeholder="https://script.google.com/macros/s/.../exec")
+            f_form = st.text_input("2. Google Form Link:", placeholder="https://docs.google.com/forms/d/...")
+            f_ref = st.text_input("3. Reference Link (Optional):", placeholder="e.g., PDF Formula Sheet")
+            f_tool = st.text_input("4. Extra Tool Link (Optional):", placeholder="e.g., Online Calculator")
+            
+            if st.form_submit_button("CREATE STUDENT PORTAL", use_container_width=True):
+                if f_hook and f_form:
+                    # Tự động lấy URL hiện tại của app
+                    base_url = "https://online-exam.streamlit.app/" # Thay bằng URL thật của bạn
+                    
+                    s_link = f"{base_url}?form={f_form}&hook={f_hook}&ref={f_ref or 'None'}&tool={f_tool or 'None'}"
+                    
+                    st.success("🎉 Exam Link Generated!")
+                    st.write("**Send this to your students:**")
+                    st.code(s_link)
+                    st.info("Remember: Watch your live updates in the Google Sheet 'LIVE_MONITOR' tab.")
+                else:
+                    st.error("Please provide at least Webhook URL and Google Form Link.")
+
