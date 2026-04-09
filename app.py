@@ -17,38 +17,69 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 params = st.query_params
-
-# --- 2. TEACHER LIVE DASHBOARD MODE ---
+# --- 2. THE "PRO" LIVE DASHBOARD ---
 if "view" in params:
-    st.markdown('<h1 class="main-title">📊 Live Class Monitor</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-title">📊 LIVE CLASS MONITOR</h1>', unsafe_allow_html=True)
     sheet_link = params.get("view")
     
     try:
+        # Data Processing
         file_id = sheet_link.split("/d/")[1].split("/")[0]
         csv_url = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv"
-        df = pd.read_csv(csv_url, names=['Timestamp', 'Student', 'Action'])
+        df = pd.read_csv(csv_url, names=['Time', 'Student', 'Action'])
+        df['Time'] = pd.to_datetime(df['Time']).dt.strftime('%H:%M:%S')
+
+        # Top Row Metrics
+        total_s = df[df['Action']=='START']['Student'].nunique()
+        total_f = df[df['Action']=='FINISH']['Student'].nunique()
+        total_v = len(df[df['Action']=='LEAVE TAB'])
         
         m1, m2, m3 = st.columns(3)
-        m1.metric("Students Joined", df[df['Action']=='START']['Student'].nunique())
-        m2.metric("Completed", df[df['Action']=='FINISH']['Student'].nunique())
-        m3.metric("Tab Switches", len(df[df['Action']=='LEAVE TAB']), delta_color="inverse")
+        m1.metric("Students Online", total_s, help="Total students who clicked Start")
+        m2.metric("Finished", total_f, f"{int(total_f/total_s*100 if total_s>0 else 0)}%")
+        m3.metric("Total Violations", total_v, delta=total_v, delta_color="inverse")
 
         st.divider()
-        col_l, col_r = st.columns([6, 4])
-        with col_l:
-            st.subheader("🚨 Violation Log")
-            st.dataframe(df[df['Action']=='LEAVE TAB'].sort_values('Timestamp', ascending=False), use_container_width=True)
-        with col_r:
-            st.subheader("📈 Completion Progress")
-            total_s = df[df['Action']=='START']['Student'].nunique()
-            total_f = df[df['Action']=='FINISH']['Student'].nunique()
-            fig = px.pie(values=[total_f, max(0, total_s - total_f)], names=['Finished', 'In Progress'], 
-                         color_discrete_sequence=['#22C55E', '#EAB308'], hole=0.4)
-            st.plotly_chart(fig, use_container_width=True)
 
-        if st.button("🔄 Refresh Data", use_container_width=True): st.rerun()
+        # Main Dashboard Layout
+        col_list, col_chart = st.columns([6, 4])
+
+        with col_list:
+            st.subheader("🚨 Real-time Violation Watch")
+            v_df = df[df['Action']=='LEAVE TAB'].sort_values('Time', ascending=False)
+            if not v_df.empty:
+                # Highlight violations with a custom style
+                st.dataframe(v_df.style.set_properties(**{'background-color': '#fff5f5', 'color': '#c53030'}), use_container_width=True)
+            else:
+                st.success("Clean Exam: No tab switching detected yet.")
+
+            st.subheader("👥 Detailed Status Tracker")
+            status_df = df.sort_values('Time').groupby('Student').tail(1)
+            # Add status emojis
+            status_df['Status'] = status_df['Action'].map({
+                'START': '🟢 Working', 
+                'FINISH': '✅ Done', 
+                'LEAVE TAB': '⚠️ Violation'
+            })
+            st.table(status_df[['Student', 'Status', 'Time']])
+
+        with col_chart:
+            st.subheader("Completion Analysis")
+            fig = px.pie(values=[total_f, max(0, total_s - total_f)], 
+                         names=['Completed', 'Still Working'], 
+                         hole=0.5,
+                         color_discrete_sequence=['#22C55E', '#CBD5E1'])
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Simple Activity Log
+            st.subheader("Recent Activity")
+            st.write(df.tail(10).sort_values('Time', ascending=False)[['Time', 'Student', 'Action']])
+
+        if st.button("🔄 FORCE REFRESH", use_container_width=True): st.rerun()
+        
     except:
-        st.error("Enable 'Anyone with the link can view' on your Google Sheet.")
+        st.warning("⚠️ Waiting for data... Please ensure your Google Sheet is shared as 'Anyone with the link can view'.")
+
 # 3  STUDENT MODE: 
 if "form" in params:
     FORM_URL = params.get("form")
