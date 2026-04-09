@@ -4,8 +4,28 @@ import requests
 import datetime
 import pytz
 
-# --- 1. CONFIG & LOCK LOGIC ---
+# --- 1. CONFIG & CSS FOR STICKY SIDEBAR ---
 st.set_page_config(page_title="Exam Portal", layout="wide")
+
+st.markdown("""
+    <style>
+    /* Fixed/Sticky logic for the right column (Candidate info & Finish button) */
+    [data-testid="column"]:nth-child(2) [data-testid="stVerticalBlock"] {
+        position: sticky;
+        top: 2rem;
+        z-index: 1000;
+    }
+    
+    /* Responsive adjustment for mobile */
+    @media (max-width: 640px) {
+        [data-testid="column"]:nth-child(2) [data-testid="stVerticalBlock"] {
+            position: relative;
+            top: 0;
+        }
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 params = st.query_params
 
 # Automatic Expiration Check
@@ -13,7 +33,7 @@ if "until" in params and params.get("until") != "None":
     try:
         vn_tz = pytz.timezone('Asia/Ho_Chi_Minh')
         now = datetime.datetime.now(vn_tz)
-        u = params.get("until") # Expected format: YYYYMMDDHHmm
+        u = params.get("until") 
         
         deadline = vn_tz.localize(datetime.datetime(
             int(u[:4]), int(u[4:6]), int(u[6:8]), 
@@ -40,12 +60,13 @@ if "form" in params:
         "tool": params.get("tool")
     }
 
-    # Initialize session states
     if 'has_started' not in st.session_state: st.session_state.has_started = False
     if 'is_active' not in st.session_state: st.session_state.is_active = True
 
     c1, c2 = st.columns([7, 3])
-    with c1: st.title("📝 Online Examination")
+    
+    with c1: 
+        st.title("📝 Online Examination")
     
     with c2:
         # Phase 1: Registration
@@ -57,17 +78,15 @@ if "form" in params:
                         st.session_state.student_name = s_name
                         st.session_state.has_started = True
                         send_log(config['hook'], s_name, "START")
-                        st.rerun() # Only rerun here to enter the exam
+                        st.rerun()
         
-        # Phase 2: Monitoring & Finishing
+        # Phase 2: Monitoring & Finishing (Sticky column content)
         else:
             if st.session_state.is_active:
                 st.info(f"👤 Candidate: **{st.session_state.student_name}**")
-                # We use a standard button instead of a form to avoid forced refreshes
                 if st.button("🏁 FINISH", type="primary", use_container_width=True):
                     send_log(config['hook'], st.session_state.student_name, "FINISH")
                     st.session_state.is_active = False
-                    # IMPORTANT: No st.rerun() here to keep the iframe state
                     st.toast("Submission logged. Monitoring deactivated.")
             
             if not st.session_state.is_active:
@@ -75,11 +94,8 @@ if "form" in params:
 
     st.divider()
 
-    # Phase 3: Persistent Content Layout
     if st.session_state.has_started:
-        
-        # Anti-cheat JS: Only runs if is_active is True
-        # Using a container to hold the JS so it can be "removed" when state changes
+        # Anti-cheat JS
         js_placeholder = st.empty()
         if st.session_state.is_active:
             with js_placeholder:
@@ -96,9 +112,9 @@ if "form" in params:
                     </script>
                 """, height=0)
         else:
-            js_placeholder.empty() # Remove the JS monitoring entirely
+            js_placeholder.empty()
 
-        # Tab Layout: This remains untouched during the "Finish" process
+        # Content Layout
         tab_map = {"✍️ Assignment": config['form']}
         if config['ref'] and config['ref'] != "None": tab_map["📋 Resources"] = config['ref']
         if config['tool'] and config['tool'] != "None": tab_map["🔍 Tools"] = config['tool']
@@ -108,21 +124,19 @@ if "form" in params:
             with tabs[i]:
                 st.markdown(f'<iframe src="{url}" width="100%" height="850px" style="border:none;"></iframe>', unsafe_allow_html=True)
 
-
 # --- 3. TEACHER MODE ---
 else:
     st.title("🛠️ Exam Management Console")
     t_setup, t_gen = st.tabs(["📖 Setup Guide", "🚀 Generate Exam Link"])
     
     with t_setup:
-
         st.markdown("### Phase 1: Google Sheets Setup")
         st.markdown("1. Open a new [Google Sheet](https://sheets.new).")
         st.markdown("2. Go to **Extensions > Apps Script**.")
-        st.markdown("3. Paste the provided code into `Code.gs`:")
+        st.markdown("3. Paste the following code into `Code.gs`:")
 
-        with st.expander("📄 View Apps Script Code"):
-            st.code("""
+        # Apps Script Code moved between Step 3 and 4
+        st.code("""
 /**
  * 1. CORE DATA RECEIVER
  */
@@ -161,43 +175,32 @@ function setupDashboard() {
   var dashSheet = ss.getSheetByName("LIVE_MONITOR") || ss.insertSheet("LIVE_MONITOR");
   dashSheet.clear().activate();
 
-  // --- STATISTICS ---
   dashSheet.getRange("A1:B1").merge().setValue("📊 STATISTICS").setBackground("#1f4e78").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("center");
   dashSheet.getRange("A3").setValue("Total Students Started:");
-  dashSheet.getRange("B3").setFormula(`=IFERROR(COUNTUNIQUE(FILTER(Logs!B:B${sep} UPPER(TRIM(Logs!C:C))="START"))${sep} 0)`);
+  dashSheet.getRange("B3").setFormula(`=IFERROR(COUNTUNIQUE(FILTER(Logs!B:B\${sep} UPPER(TRIM(Logs!C:C))="START"))\${sep} 0)`);
   dashSheet.getRange("A4").setValue("Completed:");
-  dashSheet.getRange("B4").setFormula(`=COUNTIF(Logs!C:C${sep} "*FINISH*")`);
+  dashSheet.getRange("B4").setFormula(`=COUNTIF(Logs!C:C\${sep} "*FINISH*")`);
   dashSheet.getRange("A5").setValue("Total Violations:");
-  dashSheet.getRange("B5").setFormula(`=COUNTIF(Logs!C:C${sep} "*LEAVE TAB*")`).setFontColor("red").setFontWeight("bold");
+  dashSheet.getRange("B5").setFormula(`=COUNTIF(Logs!C:C\${sep} "*LEAVE TAB*")`).setFontColor("red").setFontWeight("bold");
 
-  // --- MONITORING TABLE ---
   dashSheet.getRange("D1:G1").merge().setValue("🚨 STUDENT MONITORING").setBackground("#333333").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("center");
   
   var headers = [["Student Name", "Violations", "Last Violation At", "Status"]];
   dashSheet.getRange("D2:G2").setValues(headers).setBackground("#eeeeee").setFontWeight("bold");
 
-  var nameQuery = `=IFERROR(UNIQUE(QUERY(Logs!A:C${sep} "SELECT B WHERE UPPER(C) CONTAINS 'START'"${sep} 1))${sep} "Waiting...")`;
+  var nameQuery = \`=IFERROR(UNIQUE(QUERY(Logs!A:C\${sep} "SELECT B WHERE UPPER(C) CONTAINS 'START'"\${sep} 1))\${sep} "Waiting...")\`;
   dashSheet.getRange("D3").setFormula(nameQuery);
 
   var lastRow = 200; 
 
-  dashSheet.getRange("E3:E" + lastRow).setFormula(
-    `=IF(OR(D3=""${sep} D3="Waiting...")${sep} ""${sep} COUNTIFS(Logs!B:B${sep} D3${sep} Logs!C:C${sep} "*LEAVE TAB*"))`
-  );
-
-  dashSheet.getRange("F3:F" + lastRow).setFormula(
-    `=IF(OR(D3=""${sep} E3=0)${sep} ""${sep} MAXIFS(Logs!A:A${sep} Logs!B:B${sep} D3${sep} Logs!C:C${sep} "*LEAVE TAB*"))`
-  );
+  dashSheet.getRange("E3:E" + lastRow).setFormula(\`=IF(OR(D3=""\${sep} D3="Waiting...")${sep} ""\${sep} COUNTIFS(Logs!B:B\${sep} D3\${sep} Logs!C:C\${sep} "*LEAVE TAB*"))\`);
+  dashSheet.getRange("F3:F" + lastRow).setFormula(\`=IF(OR(D3=""\${sep} E3=0)\${sep} ""\${sep} MAXIFS(Logs!A:A\${sep} Logs!B:B\${sep} D3\${sep} Logs!C:C\${sep} "*LEAVE TAB*"))\`);
   dashSheet.getRange("F3:F" + lastRow).setNumberFormat("HH:mm:ss");
+  dashSheet.getRange("G3:G" + lastRow).setFormula(\`=IF(OR(D3=""\${sep} D3="Waiting...")${sep} ""\${sep} IF(COUNTIFS(Logs!B:B\${sep} D3\${sep} Logs!C:C\${sep} "*FINISH*")>0\${sep} "COMPLETED"\${sep} "IN PROGRESS"))\`);
 
-  dashSheet.getRange("G3:G" + lastRow).setFormula(
-    `=IF(OR(D3=""${sep} D3="Waiting...")${sep} ""${sep} IF(COUNTIFS(Logs!B:B${sep} D3${sep} Logs!C:C${sep} "*FINISH*")>0${sep} "COMPLETED"${sep} "IN PROGRESS"))`
-  );
-
-  // --- AUTO HIGHLIGHT COMPLETED ---
   var range = dashSheet.getRange("D3:G" + lastRow);
   var rule = SpreadsheetApp.newConditionalFormatRule()
-      .whenFormulaSatisfied(`=$G3="COMPLETED"`)
+      .whenFormulaSatisfied(\`=$G3="COMPLETED"\`)
       .setBackground("#d9ead3")
       .setFontColor("#274e13")
       .setRanges([range])
@@ -212,8 +215,8 @@ function setupDashboard() {
 
   SpreadsheetApp.getUi().alert("Dashboard is updated.");
 }
-            """, language="javascript")
-        
+        """, language="javascript")
+
         st.markdown("4. Click **Deploy > New Deployment**.")
         st.markdown("5. Select **Web App**, set access to **Anyone**, and click **Deploy**.")
         st.markdown("6. **Copy the Web App URL** for the next step.")
@@ -240,12 +243,8 @@ function setupDashboard() {
             
             if st.form_submit_button("GENERATE PORTAL LINK", use_container_width=True):
                 if h and f:
-                    if exp_time:
-                        u_param = f"{exp_date.strftime('%Y%m%d')}{exp_time.strftime('%H%M')}"
-                    else:
-                        u_param = "None"
-                    
-                    base_url = "https://online-exam.streamlit.app/" # Update to your URL
+                    u_param = f"{exp_date.strftime('%Y%m%d')}{exp_time.strftime('%H%M')}" if exp_time else "None"
+                    base_url = "https://online-exam.streamlit.app/" 
                     link = f"{base_url}?form={f}&hook={h}&until={u_param}&ref={r or 'None'}&tool={t or 'None'}"
                     st.success("Link Generated!")
                     st.code(link)
