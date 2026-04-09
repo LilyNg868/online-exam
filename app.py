@@ -187,7 +187,7 @@ function setupDashboard() {
   SpreadsheetApp.getUi().alert("Dashboard initialized!");
 }
             """, language="javascript")
-        """)
+       
             
     with t_gen:
         with st.form("generator"):
