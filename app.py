@@ -129,7 +129,7 @@ else:
         - Once the first student starts, a menu **🚀 EXAM TOOLS** will appear in your Sheet.
         - Click **Setup Live Dashboard** to initialize the monitor.
         """)
-      with st.expander("📄 View Apps Script Code"):  
+          with st.expander("📄 View Apps Script Code"):  
             st.code("""
             /**
  * 1. CORE DATA RECEIVER
